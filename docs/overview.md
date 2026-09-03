@@ -47,6 +47,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `README.md` | Deskripsi publik + cara menjalankan + validasi. |
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, ekspor `__pub{render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,computeDomain,…}` + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5). `node tools/model.test.js`. |
+| `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
 | `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI. `node tools/ui.test.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
@@ -66,6 +67,13 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
      dan puncak kurva ×1.2 (minimal 1). Skala bidang **dari kurva**, bukan dari titik.
    - `curveSample(m,xMax)` — titik sampel ambang per segmen (breakpoint dijaga sebagai
      titik sampel agar kurva tidak membulat di sambungan).
+   - **Modul `slopeList`** — satu-satunya pemilik invariant daftar slope (percent 1–200;
+     breakpoint monoton naik, gap 0.1, pertama ≥0.6, ≤20; slope terakhir open; 1..4;
+     Slope 1 tak bisa dihapus; id di-assign internal). Setiap perintah
+     (`setPercent/setBreakpoint/add/remove/load`) **menormalkan** → state ilegal tidak
+     mungkin ada; `bounds(id)` memberi batas UI; `warnings()` hanya kombinasi "tidak
+     umum tapi legal" (slope berikut lebih landai). Diuji properti di
+     `tools/slope-list.test.js`.
 4. **Binding kontrol**: `bindPair` (slider+number sinkron, dipakai pickup), grup metode
    restraint, slope dinamis (delegasi `input`/`click` di `#slopesContainer`), preset,
    kalkulator I1/I2 + tombol titik, skenario, tombol animasi, collapse, modal "Tentang".
@@ -86,7 +94,10 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
   Marker BP hanya untuk segmen non-terakhir (`BP1`, `BP2`, …).
 - **`renderSlopes()` hanya dipanggil saat struktur slope berubah** (init, tambah/hapus
   slope, preset). Perubahan nilai (slider/angka) tidak membangun ulang DOM — kalau tidak,
-  drag slider putus di tengah jalan. Nilai yang berubah langsung ditulis ke `P.slopes`.
+  drag slider putus di tengah jalan. Nilai yang berubah lewat perintah `slopeList`.
+- **Jangan clamp/normalisasi slope di luar `slopeList`** — modul itu satu-satunya pemilik
+  invariant; `renderSlopes` membaca batas via `SL.bounds(id)` (tidak menghitung ulang,
+  tidak memutasi `breakpoint` saat render).
 - **Status titik dihitung ulang setiap `render()`** terhadap kurva saat ini (manual
   maupun dari kalkulator) — jangan tampilkan `pt.status` lama.
 - **Dekorasi SVG tidak menangkap pointer**: `#plane line/polygon/polyline/text`
@@ -104,8 +115,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ## Validasi (tanpa build)
 
 ```bash
-node tools/model.test.js   # 25 asersi literals model (PRD §5)
-node tools/ui.test.js      # 22 asersi seam desain + perilaku UI
+node tools/model.test.js       # 25 asersi literals model (PRD §5)
+node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
+node tools/ui.test.js          # 22 asersi seam desain + perilaku UI
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari

@@ -52,8 +52,9 @@ inti tetap berjalan tanpanya.
 ## Validasi
 
 ```bash
-node tools/model.test.js   # model: threshold multi-slope, status, margin (25 asersi)
-node tools/ui.test.js      # seam desain + perilaku UI (22 asersi)
+node tools/model.test.js       # model: threshold multi-slope, status, margin (25 asersi)
+node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI (22 asersi)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

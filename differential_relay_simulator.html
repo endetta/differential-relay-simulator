@@ -137,7 +137,6 @@
   .table-empty{font-size:11.5px;color:var(--ink-soft);padding:6px 2px;font-family:'Inter',sans-serif;}
 
   .warn{font-size:10.5px;color:var(--copper);background:var(--copper-soft);border-radius:7px;padding:6px 9px;margin-top:8px;line-height:1.5;font-family:'JetBrains Mono',monospace;}
-  .warn.warn-invalid{color:var(--red);background:var(--red-soft);}
 
   /* blok slope dinamis */
   .slope{border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-bottom:9px;background:var(--surface);}
@@ -379,8 +378,7 @@ function niceStep(range){ const raw=range/6; const base=Math.pow(10,Math.floor(M
 
 /* ---------- state global ---------- */
 const MAX_SLOPES=4, MAX_BP=20;
-let uid=1;
-const freshSlopes=(arr)=>arr.map(s=>({id:uid++,percent:s.percent,breakpoint:s.breakpoint}));
+let uid=1;                       // id TITIK uji (id slope di-assign modul slopeList)
 const DEFAULT_SLOPES=[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}];
 const PRESETS={
   dual:{pickup:0.30,slopes:[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}]},
@@ -398,7 +396,7 @@ const S={
   param:{
     pickup:0.30,
     method:'average',               // 'average' | 'maximum'
-    slopes:freshSlopes(DEFAULT_SLOPES),
+    slopes:[],                      // diisi SL.load(DEFAULT_SLOPES) di bawah (modul slopeList)
     i1:1.20,i2:0.60,
     points:[],                      // {id,source:'manual'|'calc',irt,iop,i1,i2}
     selectedId:null,
@@ -408,6 +406,107 @@ const S={
   ui:{collapsed:{curve:false,calc:false}}
 };
 const P=S.param;
+
+/* =========================================================
+   MODUL DAFTAR SLOPE — satu-satunya pemilik invariant kurva
+   (deep module). `items` = array yang dibungkus (= P.slopes);
+   model & DOM membaca items langsung. Setiap perintah
+   MENORMALKAN: hasil tidak mungkin melanggar aturan —
+     · percent ∈ [1,200]
+     · breakpoint: pertama ≥ 0.6; tiap segmen ≥ prev + 0.1 dan
+       ≤ next − 0.1 (bila next tertutup); langkah 0.1
+     · slope terakhir selalu open (breakpoint:null)
+     · jumlah 1..MAX_SLOPES; Slope 1 tak bisa dihapus
+   Perintah yang mustahil → no-op senyap. Id slope di-assign
+   internal (terpisah dari id titik uji).
+   ========================================================= */
+const BP_MIN=0.6, BP_STEP=0.1;
+function slopeList(items){
+  let nid=1;
+  const r1=v=>Math.round(v*10)/10;
+  const open=s=>s.breakpoint==null;
+  const idxOf=id=>items.findIndex(s=>s.id===id);
+  const prevBp=i=>i>0&&!open(items[i-1])?items[i-1].breakpoint:0;
+  function bounds(id){
+    const i=idxOf(id);
+    if(i<0||open(items[i])) return null;             // segmen open: tanpa breakpoint
+    const nx=items[i+1];
+    const lo=i===0?BP_MIN:prevBp(i)+BP_STEP;
+    const hi=nx&&!open(nx)?nx.breakpoint-BP_STEP:MAX_BP;
+    return {min:r1(lo),max:r1(hi)};
+  }
+  function chain(){                                  // normalisasi penuh (kiri→kanan, lalu kanan→kiri)
+    for(let pass=0;pass<3;pass++){
+      let prev=0;
+      for(let i=0;i<items.length;i++){
+        const s=items[i];
+        s.percent=clamp(Number(s.percent)||1,1,200);
+        if(i===items.length-1){ s.breakpoint=null; continue; }
+        const lo=i===0?BP_MIN:prev+BP_STEP;
+        const raw=(s.breakpoint==null)?lo:s.breakpoint;
+        s.breakpoint=r1(clamp(raw,lo,MAX_BP));
+        prev=s.breakpoint;
+      }
+      for(let i=items.length-2;i>=0;i--){
+        const nx=items[i+1];
+        if(!nx||open(nx)) continue;
+        const hi=nx.breakpoint-BP_STEP;
+        if(items[i].breakpoint>hi) items[i].breakpoint=r1(hi);
+      }
+    }
+  }
+  const self={
+    items,
+    bounds,
+    setPercent(id,v){
+      const s=items.find(x=>x.id===id);
+      if(s) s.percent=clamp(Number(v)||1,1,200);
+    },
+    setBreakpoint(id,v){
+      const i=idxOf(id);
+      if(i<0||open(items[i])) return;                // slope open tak punya breakpoint
+      const b=bounds(id);
+      items[i].breakpoint=r1(clamp(Number(v),b.min,b.max));
+    },
+    add(percent=50){
+      if(items.length>=MAX_SLOPES) return;
+      /* bp tertutup sebelum segmen open terakhir (= terjauh, rantai monotonik) */
+      const prevOfLast=items.length>1&&!open(items[items.length-2])?items[items.length-2].breakpoint:0;
+      const lo=prevOfLast>0?prevOfLast+BP_STEP:BP_MIN;
+      /* split = 1.5× bp terjauh (fallback 2.0); bila tak ada ruang (prev ≥ 20) → no-op */
+      const split=r1(clamp(prevOfLast>0?prevOfLast*1.5:2.0,lo,MAX_BP));
+      if(split<lo-1e-9) return;                      // mustahil memecah di atas MAX_BP
+      const last=items[items.length-1];
+      if(last) last.breakpoint=split;                // segmen open lama jadi tertutup
+      items.push({id:nid++,percent:clamp(Number(percent)||1,1,200),breakpoint:null});
+    },
+    remove(id){
+      const i=idxOf(id);
+      if(i<=0) return;                               // Slope 1 dilindungi
+      const removed=items[i];
+      items.splice(i,1);
+      if(i===items.length) items[items.length-1].breakpoint=null;   // segmen terakhir dihapus → pred jadi open
+      else items[i-1].breakpoint=removed.breakpoint; // segmen tengah → pred mewarisi bp (rantai tetap legal)
+    },
+    load(listLike){
+      items.length=0;
+      (listLike||[]).forEach(x=>items.push({id:nid++,percent:x.percent,breakpoint:x.breakpoint}));
+      chain();
+    },
+    warnings(){
+      const out=[];
+      for(let i=0;i<items.length-1;i++){
+        if(items[i+1].percent<items[i].percent){
+          out.push(`Kombinasi tidak umum: Slope ${i+2} (${items[i+1].percent}%) lebih kecil dari Slope ${i+1} (${items[i].percent}%). Kurva tetap digambar — silakan eksplorasi.`);
+        }
+      }
+      return out;
+    }
+  };
+  return self;
+}
+const SL=slopeList(P.slopes);
+SL.load(DEFAULT_SLOPES);
 
 /* ---------- DOM ---------- */
 const $=id=>document.getElementById(id);
@@ -494,25 +593,25 @@ document.querySelectorAll('#methodGroup button').forEach(b=>b.addEventListener('
   b.classList.add('active'); setMethod(b.dataset.v);
 }));
 
-/* slope: perubahan nilai (slider/angka) — DOM slope TIDAK dibangun ulang agar
-   drag slider tidak terputus; hanya model + turunan yang di-refresh. */
+/* slope: perubahan NILAI (slider/angka) → perintah modul → render().
+   DOM slope TIDAK dibangun ulang agar drag slider tidak terputus; DOM hanya
+   dibangun ulang saat struktur berubah (tambah/hapus/preset) via renderSlopes(). */
+function mirrorSlopeInputs(sid,role){
+  const s=P.slopes.find(x=>x.id===sid); if(!s) return;
+  const val=role==='percent'?s.percent:(s.breakpoint==null?'':s.breakpoint);
+  document.querySelectorAll(`#slopesContainer input[data-slope="${sid}"][data-role="${role}"]`)
+    .forEach(x=>{ x.value=val; });
+}
 $('slopesContainer').addEventListener('input',e=>{
   const t=e.target;
   if(!t.dataset||!t.dataset.slope) return;
-  const sid=Number(t.dataset.slope);
+  const sid=Number(t.dataset.slope), role=t.dataset.role;
   const s=P.slopes.find(x=>x.id===sid); if(!s) return;
-  const role=t.dataset.role;
-  const rowEls=document.querySelectorAll(`#slopesContainer input[data-slope="${sid}"][data-role="${role}"]`);
-  let v=parseFloat(t.value);
-  if(Number.isNaN(v)){ rowEls.forEach(x=>x.value=t.dataset.role==='bp'?s.breakpoint:s.percent); return; }
-  if(role==='percent'){
-    s.percent=clamp(v,1,200);
-  } else {
-    const idx=P.slopes.indexOf(s);
-    const prevBp=idx>0&&P.slopes[idx-1].breakpoint!=null?P.slopes[idx-1].breakpoint:0;
-    s.breakpoint=Math.round(clamp(v,Math.max(prevBp+0.1,0.5),MAX_BP)*10)/10;
-  }
-  rowEls.forEach(x=>{ if(x!==t) x.value=role==='percent'?s.percent:(s.breakpoint==null?'':s.breakpoint); });
+  const v=parseFloat(t.value);
+  if(Number.isNaN(v)){ mirrorSlopeInputs(sid,role); return; }
+  if(role==='percent') SL.setPercent(sid,v);
+  else SL.setBreakpoint(sid,v);
+  mirrorSlopeInputs(sid,role);       // nilai otoritatif (sudah di-clamp modul)
   recalcCalcPoints(); render();
 });
 $('slopesContainer').addEventListener('click',e=>{
@@ -522,13 +621,9 @@ $('slopesContainer').addEventListener('click',e=>{
 
 function renderSlopes(){
   const el=els.slopesContainer;
+  $('addSlope').disabled=P.slopes.length>=MAX_SLOPES;
   el.innerHTML=P.slopes.map((s,i)=>{
     const isLast=i===P.slopes.length-1;
-    const prevBp=i>0&&P.slopes[i-1].breakpoint!=null?P.slopes[i-1].breakpoint:0;
-    const next=P.slopes[i+1];
-    const minBp=i===0?0.6:Math.round((prevBp+0.1)*10)/10;
-    const maxBp=!isLast&&next&&next.breakpoint!=null?next.breakpoint-0.1:MAX_BP;
-    if(s.breakpoint!=null) s.breakpoint=Math.round(clamp(s.breakpoint,minBp,maxBp)*10)/10;
     const del=i>0?`<button class="sdel" data-del-slope="${s.id}" aria-label="Hapus Slope ${i+1}" title="Hapus Slope ${i+1}">✕</button>`:'';
     const ctrl=(role,val,lo,hi,step,unit)=>`
       <div class="ctrlrow">
@@ -536,9 +631,10 @@ function renderSlopes(){
         <input type="number" data-slope="${s.id}" data-role="${role}" min="${lo}" max="${hi}" step="${step}" value="${val}" inputmode="${role==='percent'?'numeric':'decimal'}">
         <span class="unit">${unit}</span>
       </div>`;
+    const b=isLast?null:SL.bounds(s.id);        // batas dari modul (bukan dihitung ulang di sini)
     const bpField=isLast
       ? `<div class="slope-note">Berlaku sampai arus tak hingga (slope terakhir).</div>`
-      : `<div class="field" style="margin:0;"><label>Breakpoint — Irt</label>${ctrl('bp',s.breakpoint,minBp,maxBp,0.1,'pu')}</div>`;
+      : `<div class="field" style="margin:0;"><label>Breakpoint — Irt</label>${ctrl('bp',s.breakpoint,b.min,b.max,0.1,'pu')}</div>`;
     return `<div class="slope">
       <div class="slope-h"><span class="sn">Slope ${i+1}</span>${del}</div>
       <div class="field" style="margin-bottom:8px;"><label>Kemiringan</label>${ctrl('percent',s.percent,1,200,1,'%')}</div>
@@ -546,35 +642,20 @@ function renderSlopes(){
     </div>`;
   }).join('');
 }
-function addSlope(){
-  if(P.slopes.length>=MAX_SLOPES) return;
-  /* breakpoint baru = 1.5× breakpoint terjauh yang ada (fallback 2.0 saat belum ada) */
-  const bps=P.slopes.map(x=>x.breakpoint).filter(b=>b!=null);
-  const lastBp=bps.length?Math.max(...bps):2;
-  const newBp=Math.min(Math.round(lastBp*1.5*10)/10,MAX_BP);
-  const last=P.slopes[P.slopes.length-1];
-  last.breakpoint=newBp;         // slope terakhir lama menjadi segmen tengah
-  P.slopes.push({id:uid++,percent:50,breakpoint:null});
-  edu={topic:'general'};
+function addSlope(){ if(P.slopes.length>=MAX_SLOPES) return;
+  SL.add(50); edu={topic:'general'};
   renderSlopes(); recalcCalcPoints(); render();
 }
-function removeSlope(id){
-  const idx=P.slopes.findIndex(x=>x.id===id);
-  if(idx<=0) return;                       // Slope 1 tidak bisa dihapus
-  const removed=P.slopes[idx];
-  P.slopes.splice(idx,1);
-  if(idx===P.slopes.length){ P.slopes[P.slopes.length-1].breakpoint=null; }
-  else { P.slopes[idx-1].breakpoint=removed.breakpoint; }
-  edu={topic:'general'};
+function removeSlope(id){ SL.remove(id); edu={topic:'general'};
   renderSlopes(); recalcCalcPoints(); render();
 }
 $('addSlope').addEventListener('click',addSlope);
 
-/* preset kurva */
+/* preset kurva — lewat modul (load menormalkan + memberi id baru) */
 document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{
   const pr=PRESETS[b.dataset.preset];
   P.pickup=pr.pickup;
-  P.slopes=freshSlopes(pr.slopes);
+  SL.load(pr.slopes);
   $('pickup').value=P.pickup; $('pickupNum').value=P.pickup; $('pickupv').textContent=fmt(P.pickup,2)+' pu';
   edu={topic:'preset'};
   renderSlopes(); recalcCalcPoints(); render();
@@ -944,22 +1025,11 @@ plane.addEventListener('pointermove',e=>{
 });
 plane.addEventListener('pointerleave',()=>{ plane.title=''; });
 
-/* ---------- peringatan non-blocking (PRD §5.6) ---------- */
+/* ---------- peringatan non-blocking (PRD §5.6) ----------
+   Hanya kombinasi "tidak umum tapi legal" yang tersisa — keadaan ilegal tidak
+   mungkin ada karena modul slopeList menormalkan setiap perintah. */
 function renderWarnings(){
-  const out=[];
-  const n=P.slopes.length;
-  for(let i=0;i<n-1;i++){
-    const b=P.slopes[i].breakpoint;
-    const prev=i>0&&P.slopes[i-1].breakpoint!=null?P.slopes[i-1].breakpoint:0;
-    if(b!=null&&b<=prev) out.push(`<div class="warn warn-invalid">Breakpoint Slope ${i+2} harus lebih besar dari ${fmt(prev)} pu — breakpoint harus berurutan naik.</div>`);
-  }
-  P.slopes.forEach((s,i)=>{
-    if(s.percent<1) out.push(`<div class="warn">Slope ${i+1} di bawah 1% — kurva hampir datar; tidak umum di industri.</div>`);
-  });
-  if(n>=2&&P.slopes[0].breakpoint!=null&&P.slopes[1].percent<P.slopes[0].percent){
-    out.push(`<div class="warn">Kombinasi tidak umum: Slope 2 (${P.slopes[1].percent}%) lebih kecil dari Slope 1 (${P.slopes[0].percent}%). Kurva tetap digambar — silakan eksplorasi.</div>`);
-  }
-  els.warnings.innerHTML=out.join('');
+  els.warnings.innerHTML=SL.warnings().map(w=>`<div class="warn">${w}</div>`).join('');
 }
 
 /* ---------- master render ---------- */
@@ -991,7 +1061,7 @@ function render(){
   sp.addEventListener('click',skip);
 })();
 
-/* ---------- fit kanvas R–X… maaf, Iop–Irt ke kartu (guard dimensi) ---------- */
+/* ---------- fit kanvas Iop–Irt ke kartu (guard dimensi) ---------- */
 function fitPlane(){
   const pc=document.querySelector('.plane-card');
   if(!pc||!plane) return;

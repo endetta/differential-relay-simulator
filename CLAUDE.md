@@ -34,8 +34,9 @@ Buka `.html` langsung di browser (`file:///...`), atau static server
 Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 
 ```bash
-node tools/model.test.js     # 25 asersi literals model murni (PRD §5)
-node tools/ui.test.js        # 22 asersi seam desain & perilaku UI
+node tools/model.test.js       # 25 asersi literals model murni (PRD §5)
+node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
+node tools/ui.test.js          # 22 asersi seam desain & perilaku UI
 ```
 
 Kedua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
@@ -62,6 +63,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    = max(pickup, slopeLine)`, `statusOf` (TRIP iff `iop > threshold+1e-12` — tepat di
    kurva = RESTRAIN), `marginOf`, `computeDomain`, `curveSample`. Konvensi: fungsi
    memakai `m={pickup,method,slopes}` supaya bisa diuji dengan objek sintetis.
+   Daftar slope diurus **modul `slopeList`** (`SL` membungkus `P.slopes`): satu-satunya
+   pemilik invariant & clamp (percent 1–200; bp monoton naik gap 0.1, pertama ≥0.6,
+   ≤20; terakhir open; 1..4; Slope 1 dilindungi; id internal). Perintah
+   `setPercent/setBreakpoint/add/remove/load` selalu menormalkan; `bounds(id)` untuk
+   UI; `warnings()` = kombinasi "tidak umum tapi legal" saja.
 4. **Binding kontrol** → `render()`. Semua perubahan state lewat satu entry point.
 5. **Renderer murni per bagian** — `renderPlane` (SVG `#plane` **adaptif**: `viewBox` =
    ukuran elemen aktual `clientWidth/Height`, fallback `640×440` untuk tes; grid+tick
@@ -82,9 +88,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - **Slope dinamis — jangan bangun ulang DOM `#slopesContainer` pada tiap `input`**
   (drag slider putus). `renderSlopes()` hanya di init, tambah/hapus slope, dan preset;
   perubahan nilai ditulis langsung ke `P.slopes`, lalu `render()`.
-- **Breakpoint harus monoton naik**; slider/input di-clamp `minBp = breakpoint
-  sebelumnya + 0.1`, `maxBp = breakpoint berikutnya − 0.1` (slope terakhir: `MAX_BP=20`,
-  tanpa bp).
+- **Jangan pernah menormalkan/clamp slope di luar `slopeList`** — modul itu satu-satunya
+  pemilik invariant. `renderSlopes` membaca batas via `SL.bounds(id)` (tidak menghitung
+  ulang, tidak memutasi `breakpoint` saat render); handler input cukup memanggil
+  perintah modul lalu `render()`. Melewati modul (mutasi `P.slopes` langsung) = di luar
+  kontrak — state bisa jadi ilegal.
 - **Status titik basi** — selalu `ptStatus(P, pt)` untuk semua titik di dalam `render()`
   (manual & kalkulator), karena kurva bisa berubah setelah titik ditambahkan.
 - **`pointer-events` SVG**: line/polygon/polyline/text diberi `pointer-events:none`
@@ -103,4 +111,6 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - Model 1 file; renderer murni memakai string SVG → mudah diuji lewat harness.
 - Tambah fungsi baru yang perlu diuji → ekspor di daftar `__pub` di
   `tools/lens-harness.js` (pola `new Function(code + ';global.__pub={…}')`).
+  Contoh terpasang: `slopeList` (fabrik — tes membuat instance sintetis sendiri) dan
+  `SL` (instance aplikasi — tes DOM melewatinya).
 - File tes meng-hard-code nama HTML — update bila rename.

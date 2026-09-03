@@ -79,7 +79,7 @@ function loadSimulator(htmlPath) {
   global.ResizeObserver = class { observe() {} };
   global.katex = { render() {} };
 
-  new Function(code + ';global.__pub={render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,computeDomain,curveSample,slopeLine,syncCollapsedCentering,addPoint,selectPoint,clearPoints,renderPlane,setMethod,stopAnim,removePoint};')();
+  new Function(code + ';global.__pub={render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,computeDomain,curveSample,slopeLine,slopeList,SL,syncCollapsedCentering,addPoint,selectPoint,clearPoints,renderPlane,setMethod,stopAnim,removePoint};')();
 
   const pub = global.__pub;
   if (!pub || !pub.render) throw new Error('simulator did not export __pub');

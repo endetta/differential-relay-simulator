@@ -78,7 +78,7 @@ check('PRD terhubung: model & fitur dijamin di docs/PRD.md (markup kunci hadir)'
 const ctx = loadSimulator(HTML);
 const E = ctx.els;
 const pub = ctx.pub;
-const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering } = pub;
+const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering, SL } = pub;
 render();
 const svg = () => E.plane.innerHTML;
 
@@ -135,16 +135,18 @@ check('ganti metode → Average→Maximum mengubah Irt titik kalkulator', () => 
   contains(E.calcOut.innerHTML, 'Irt = <b>5.00</b> pu', 'preview kalkulator');
 });
 
-/* peringatan non-blocking untuk konfigurasi aneh (PRD §5.6) */
-check('warnings: slope2 < slope1 → badge tidak umum (non-blocking)', () => {
-  S.param.slopes = [{ id: 1, percent: 80, breakpoint: 2 }, { id: 2, percent: 20, breakpoint: null }];
+/* peringatan non-blocking (PRD §5.6) — keadaan ilegal tak mungkin ada karena
+   modul slopeList menormalkan tiap perintah; tersisa kombinasi "tidak umum". */
+check('warnings (via modul): slope2 < slope1 → badge tidak umum', () => {
+  pub.SL.load([{ percent: 80, breakpoint: 2.0 }, { percent: 20, breakpoint: null }]);
   render();
   contains(E.warnings.innerHTML, 'tidak umum', 'warnings');
+  contains(E.warnings.innerHTML, 'Slope 2 (20%) lebih kecil dari Slope 1 (80%)', 'teks warnings');
 });
-check('warnings: slope < 1% → peringatan', () => {
-  S.param.slopes = [{ id: 1, percent: 0.5, breakpoint: null }];
+check('warnings: kurva legal → kosong (modul mengembalikan [])', () => {
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
   render();
-  contains(E.warnings.innerHTML, 'di bawah 1%', 'warnings');
+  if (E.warnings.innerHTML !== '') throw new Error('default harus tanpa warning');
 });
 
 /* pemusatan saat semua kartu diciutkan */
