@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Simulator Differential Relay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+  :root{
+    --bg:#F1F3F0; --surface:#FFFFFF; --ink:#16233A; --ink-soft:#4A5568;
+    --blue:#1F4E8C; --blue-soft:#E7EEF6; --teal:#13697A; --copper:#B5651D; --copper-deep:#8C4E16; --copper-soft:#F5E9DC;
+    --line:#D6DAD2; --red:#C0392B; --red-soft:#F8E4E1; --green:#2E7D46; --green-soft:#E3F1E7;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;line-height:1.5;}
+  .wrap{max-width:1560px;margin:0 auto;padding:14px 22px 40px;}
+
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:20px;align-items:start;}
+  @media(max-width:920px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 15px;margin-bottom:14px;}
+  .card-h{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;margin:0 0 12px;}
+  .card-h .dot{width:7px;height:7px;border-radius:50%;background:var(--copper);}
+  .card-h .chev{margin-left:auto;color:var(--ink-soft);font-size:11px;transition:transform .15s;}
+  .card .card-b{display:grid;grid-template-rows:1fr;transition:grid-template-rows .35s ease,opacity .22s ease;}
+  .card .card-b-i{overflow:hidden;min-height:0;}
+  .card.collapsed .card-b{grid-template-rows:0fr;opacity:0;}
+  .card.collapsed .chev{transform:rotate(-90deg);}
+
+  .params-panel{display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-gutter:stable;padding:2px 3px 2px 0;
+    scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  .params-panel .card{margin-bottom:0;}
+  .params-panel::-webkit-scrollbar{width:6px;}
+  .params-panel::-webkit-scrollbar-track{background:transparent;}
+  .params-panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
+  .params-panel::-webkit-scrollbar-thumb:hover{background:var(--blue-soft);}
+  @media(max-width:920px){.params-panel{height:auto!important;overflow:visible;scrollbar-gutter:auto;}}
+  .params-panel.all-collapsed{justify-content:center;}
+
+  .field{margin-bottom:11px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-soft);margin-bottom:4px;font-family:'JetBrains Mono',monospace;}
+  .field label b{color:var(--ink);font-weight:600;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .zline{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--blue);background:var(--blue-soft);border-radius:6px;padding:3px 8px;margin:-2px 0 11px;line-height:1.5;}
+  .zline b{color:var(--ink);font-weight:600;}
+  input[type=number]{width:100%;padding:6px 7px;border:1px solid var(--line);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink);background:var(--bg);}
+  input[type=range]{width:100%;accent-color:var(--blue);margin:0;}
+  .btngroup{display:flex;gap:6px;flex-wrap:wrap;}
+  .btngroup button{flex:1;min-width:56px;padding:7px 6px;border:1px solid var(--line);background:var(--surface);border-radius:7px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;color:var(--ink-soft);cursor:pointer;transition:.15s;}
+  .btngroup button.active{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .btngroup button:hover:not(.active){border-color:var(--blue);color:var(--blue);}
+  .hint{font-size:10.5px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+  .mini-btn{padding:5px 9px;border:1px solid var(--line);background:var(--surface);border-radius:7px;font-size:11.5px;font-weight:500;color:var(--ink-soft);cursor:pointer;}
+  .mini-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .mini-btn.hl{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600;padding:6px 12px;}
+  .topbar .mini-btn.hl{padding:2px 10px;line-height:1.2;}
+  .mini-btn.hl:hover{background:#16385F;color:#fff;}
+  .mini-btn.on{border-color:var(--blue);background:var(--blue-soft);color:var(--blue);font-weight:600;}
+  .mini-btn.playing{background:var(--red);border-color:var(--red);color:#fff;font-weight:600;}
+  #animateBtn{width:100%;padding:9px;border:none;border-radius:8px;background:var(--copper);color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12.5px;cursor:pointer;}
+  #animateBtn.playing{background:var(--red);}
+
+  .topbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .topbar .tt{position:relative;display:inline-flex;align-items:center;font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.01em;margin-right:auto;line-height:1.2;}
+  .topbar .tt-a,.topbar .tt-b{background:linear-gradient(100deg,var(--ink) 18%,var(--copper-deep) 42%,rgba(255,255,255,.9) 52%,var(--copper-deep) 62%,var(--ink) 85%);
+    background-size:260% 100%;
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+  .topbar .tt-a{animation:ttShine 6s linear infinite,ttSwapA 8s ease-in-out infinite;}
+  .topbar .tt-b{position:absolute;left:20px;top:50%;transform:translateY(-50%);white-space:nowrap;animation:ttShine 6s linear infinite,ttSwapB 8s ease-in-out infinite;}
+  @keyframes ttShine{0%{background-position:140% 0}100%{background-position:-140% 0}}
+  @keyframes ttSwapA{0%,40%{opacity:1}60%,100%{opacity:0}}
+  @keyframes ttSwapB{0%,40%{opacity:0}60%,100%{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    .topbar .tt-a,.topbar .tt-b{animation:none!important;}
+    .topbar .tt-b{display:none;}
+  }
+  .topbar .tt::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--copper);box-shadow:0 0 0 3.5px var(--copper-soft);margin-right:11px;flex:none;}
+
+  .main{display:flex;flex-direction:column;gap:16px;}
+  .plane-row{display:grid;grid-template-columns:2.1fr 1fr;gap:16px;align-items:stretch;}
+  @media(max-width:920px){.plane-row{grid-template-columns:1fr;}}
+
+  .plane-card,.side-card,.points-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .side-card{display:flex;flex-direction:column;min-height:0;}
+  .plane-card{position:relative;display:flex;flex-direction:column;min-height:0;}
+  .plane-card svg{display:block;margin:0 auto;}
+  #plane,#plane *{ -webkit-user-select:none;-moz-user-select:none;user-select:none; }
+  /* elemen dekoratif SVG tidak menangkap pointer — klik/seret jatuh ke kotak latar
+     (#plane rect[data-plot-bg]) atau lingkaran titik uji saja. */
+  #plane line,#plane polygon,#plane polyline,#plane text{pointer-events:none;}
+  .hint-chip{position:absolute;top:10px;left:16px;z-index:5;pointer-events:none;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-soft);background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:9px;padding:3px 9px;}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:'JetBrains Mono',monospace;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none;}
+
+  .status{border-radius:10px;padding:14px 15px;text-align:center;margin-bottom:12px;}
+  .status .zlabel{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.01em;}
+  .status .tlabel{font-family:'JetBrains Mono',monospace;font-size:12px;margin-top:2px;}
+  .readout{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink);overflow-y:auto;min-height:0;}
+  .readout .r-sum{font-family:'Inter',sans-serif;font-size:12px;line-height:1.55;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;}
+  .readout .r-sum b{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--blue);white-space:nowrap;}
+  .readout .rgroup{margin-top:11px;}
+  .readout .rgroup-title{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:2px;}
+  .readout .rgroup-title::after{content:'';flex:1;height:1px;background:var(--line);}
+  .readout .rline{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0;}
+  .readout .rline span:first-child{color:var(--ink-soft);font-family:'Inter',sans-serif;font-size:11px;flex:none;}
+  .readout .rline.key span:last-child{font-weight:600;color:var(--ink);}
+  .readout .rline span:last-child{text-align:right;}
+  .formula-box{margin-top:6px;overflow-x:auto;padding:4px 0;min-height:24px;}
+  .edu-note{font-size:11px;margin-top:8px;padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--line);color:var(--ink);line-height:1.5;}
+  .edu-note b{color:var(--blue);font-weight:600;}
+  .edu-note .mono{font-family:'JetBrains Mono',monospace;}
+
+  .badge{display:inline-block;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:10px;letter-spacing:.08em;padding:2px 8px;border-radius:999px;}
+  .badge.TRIP{background:var(--red-soft);color:var(--red);}
+  .badge.RESTRAIN{background:var(--green-soft);color:var(--green);}
+
+  .points-card{display:flex;flex-direction:column;min-height:0;padding:12px 16px 14px;}
+  .points-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .points-head .pt{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;}
+  .points-head .sp{flex:1;}
+  .table-wrap{overflow:auto;min-height:0;}
+  table.ptab{width:100%;border-collapse:collapse;font-size:12px;font-family:'JetBrains Mono',monospace;}
+  table.ptab th{font-family:'Inter',sans-serif;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);text-align:left;padding:3px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.ptab td{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.ptab tbody tr:nth-child(even){background:var(--bg);}
+  table.ptab tbody tr{cursor:pointer;}
+  table.ptab tbody tr:hover{background:var(--blue-soft);}
+  table.ptab tbody tr.sel{box-shadow:inset 3px 0 0 var(--blue);background:var(--blue-soft);}
+  table.ptab td.num,table.ptab th.num{text-align:right;}
+  table.ptab .rowdel{border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:13px;padding:0 4px;border-radius:4px;}
+  table.ptab .rowdel:hover{color:var(--red);background:var(--red-soft);}
+  .table-empty{font-size:11.5px;color:var(--ink-soft);padding:6px 2px;font-family:'Inter',sans-serif;}
+
+  .warn{font-size:10.5px;color:var(--copper);background:var(--copper-soft);border-radius:7px;padding:6px 9px;margin-top:8px;line-height:1.5;font-family:'JetBrains Mono',monospace;}
+  .warn.warn-invalid{color:var(--red);background:var(--red-soft);}
+
+  /* blok slope dinamis */
+  .slope{border:1px solid var(--line);border-radius:9px;padding:9px 10px;margin-bottom:9px;background:var(--surface);}
+  .slope-h{display:flex;align-items:center;margin-bottom:7px;}
+  .slope-h .sn{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;}
+  .slope-h .sdel{margin-left:auto;border:none;background:var(--red-soft);color:var(--red);border-radius:6px;cursor:pointer;font-size:11px;width:19px;height:19px;line-height:1;}
+  .slope-h .sdel:hover{background:var(--red);color:#fff;}
+  .ctrlrow{display:flex;gap:6px;align-items:center;}
+  .ctrlrow input[type=range]{flex:1;min-width:0;}
+  .ctrlrow input[type=number]{width:64px;flex:none;}
+  .ctrlrow .unit{flex:none;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);}
+  .slope-note{font-size:10.5px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;background:var(--bg);border-radius:6px;padding:5px 8px;line-height:1.5;}
+  .curve-label{margin:2px 0 6px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.07em;text-transform:uppercase;font-family:'Space Grotesk',sans-serif;font-weight:600;}
+  #addSlope{width:100%;}
+
+  .unit-suffix{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);flex:none;}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(22,35,58,.35);display:none;align-items:center;justify-content:center;z-index:50;padding:18px;}
+  .modal-bg.show{display:flex;}
+  .modal{background:#fff;border-radius:14px;padding:18px 20px;width:460px;max-width:100%;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+  .modal h3{margin:0 0 4px;font-family:'Space Grotesk',sans-serif;font-size:15px;}
+  .modal .sub{font-size:11px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;margin-bottom:12px;}
+  .modal .close{float:right;cursor:pointer;color:var(--ink-soft);font-size:18px;line-height:1;}
+  .modal .foot{display:flex;justify-content:flex-end;margin-top:12px;}
+  .modal ul{margin:6px 0 0;padding-left:18px;}
+  .modal li{font-size:12.5px;color:var(--ink);margin-bottom:6px;line-height:1.55;}
+  .modal .mono{font-family:'JetBrains Mono',monospace;font-size:11.5px;background:var(--bg);border-radius:4px;padding:0 4px;}
+
+  /* ===== kunci tinggi DESKTOP: seluruh simulator = 1 layar ===== */
+  @media (min-width:921px) and (min-height:600px){
+    html,body{height:100%;overflow:hidden;}
+    #root{height:100%;}
+    .wrap{height:100%;padding:10px 22px 12px;display:flex;flex-direction:column;}
+    .topbar{flex:none;}
+    .layout{flex:1;min-height:0;grid-template-columns:300px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:14px;align-items:stretch;}
+    .layout>div{min-height:0;overflow:hidden;display:flex;flex-direction:column;}
+    .params-panel{height:auto!important;min-height:0;flex:1;}
+    .main{overflow:hidden;}
+    .plane-row{flex:1;min-height:0;}
+    .plane-card,.side-card{min-height:0;}
+    .side-card{overflow:hidden;}
+    .points-card{flex:none;max-height:32vh;}
+  }
+
+  /* ===== splash pembuka: tirai krem → kanan, palet hangat (sama dgn Distance Relay) ===== */
+  #root{position:relative;}
+  #splash{position:fixed;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    background:
+      radial-gradient(900px 600px at 16% 10%,rgba(181,101,29,.08),transparent 62%),
+      radial-gradient(760px 540px at 86% 92%,rgba(181,101,29,.07),transparent 62%),
+      linear-gradient(135deg,#FDFAF3 0%,#F8EFE1 100%);
+    transform:translateX(-101%);
+    transition:transform .4s cubic-bezier(.25,.6,.25,1);
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%);
+    mask-image:linear-gradient(90deg,transparent 0,#000 9%,#000 91%,transparent 100%);
+    cursor:pointer;
+  }
+  #splash.go{transform:none;}
+  #splash.out{transform:translateX(101%);transition:transform .45s cubic-bezier(.6,0,.85,.35);}
+  #splash .sp-title{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:-.015em;font-size:clamp(23px,4.4vw,40px);text-align:center;padding:0 18px;opacity:0;
+    background:linear-gradient(100deg,var(--ink) 25%,var(--copper-deep) 95%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}
+  #splash.go .sp-title{animation:spUp .34s cubic-bezier(.2,.75,.3,1) .38s both;}
+  #splash .sp-rule{width:62px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--copper),var(--copper-soft));opacity:0;}
+  #splash.go .sp-rule{animation:spWide .3s ease .5s both;}
+  #splash .sp-letters{display:flex;gap:13px;}
+  #splash .sp-letters span{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;letter-spacing:.18em;color:var(--copper);opacity:0;}
+  #splash.go .sp-letters span:nth-child(1){animation:spL .22s ease .60s both;}
+  #splash.go .sp-letters span:nth-child(2){animation:spL .22s ease .65s both;}
+  #splash.go .sp-letters span:nth-child(3){animation:spL .22s ease .70s both;}
+  #splash.go .sp-letters span:nth-child(4){animation:spL .22s ease .75s both;}
+  #splash.go .sp-letters span:nth-child(5){animation:spL .22s ease .80s both;}
+  @keyframes spUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes spWide{from{opacity:0;transform:scaleX(.15)}to{opacity:1;transform:scaleX(1)}}
+  @keyframes spL{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  @keyframes spMain{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+  .wrap{opacity:0;}
+  #root.ready .wrap{animation:spMain .55s cubic-bezier(.22,.75,.28,1) both;}
+  @media (prefers-reduced-motion: reduce){
+    #splash{display:none;}
+    #root.ready .wrap{opacity:1;animation:none;}
+  }
+</style>
+<noscript><style>.wrap{opacity:1!important;}</style></noscript>
+</head>
+<body>
+<div id="root">
+
+  <div id="splash" aria-hidden="true">
+    <div class="sp-title">Differential Relay Simulator</div>
+    <div class="sp-rule"></div>
+    <div class="sp-letters"><span>S</span><span>H</span><span>E</span><span>V</span><span>A</span></div>
+  </div>
+
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="tt"><span class="tt-a">Simulator Differential Relay</span><span class="tt-b">by Sheva - Endetta</span></span>
+    <button class="mini-btn hl" id="aboutBtn">Tentang model</button>
+    <button class="mini-btn hl" id="collapseAll">Ciutkan semua</button>
+    <button class="mini-btn hl" id="expandAll">Buka semua</button>
+  </div>
+
+  <div class="layout">
+    <!-- ===== SIDEBAR: parameter ===== -->
+    <div>
+      <div class="params-panel" id="paramsPanel">
+
+        <div class="card" data-card="curve">
+          <div class="card-h"><span class="dot"></span>Kurva karakteristik<span class="chev">▾</span></div>
+          <div class="card-b"><div class="card-b-i">
+            <div class="field">
+              <label>Minimum pickup — Iop <b id="pickupv">0.30 pu</b></label>
+              <div class="ctrlrow">
+                <input type="range" id="pickup" min="0.05" max="0.5" step="0.01" value="0.30">
+                <input type="number" id="pickupNum" min="0.05" max="0.5" step="0.01" value="0.30" inputmode="decimal">
+                <span class="unit">pu</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Metode restraint</label>
+              <div class="btngroup" id="methodGroup">
+                <button data-v="average" class="active">Average</button>
+                <button data-v="maximum">Maximum</button>
+              </div>
+              <div class="hint" id="methodHint">Irt = (|I₁|+|I₂|)/2</div>
+            </div>
+            <div class="curve-label">Segmen slope</div>
+            <div id="slopesContainer"></div>
+            <button class="mini-btn hl" id="addSlope">+ Tambah slope</button>
+            <div class="curve-label" style="margin-top:11px;">Preset cepat</div>
+            <div class="btngroup">
+              <button data-preset="dual" class="mini-btn">Dual-slope</button>
+              <button data-preset="multi" class="mini-btn">Multi adaptif</button>
+            </div>
+            <div id="warnings"></div>
+          </div></div>
+        </div>
+
+        <div class="card" data-card="calc">
+          <div class="card-h"><span class="dot"></span>Kalkulator arus<span class="chev">▾</span></div>
+          <div class="card-b"><div class="card-b-i">
+            <div class="row2">
+              <div class="field"><label>I₁ (pu)</label><input type="number" id="i1" value="1.20" step="0.05" min="0" inputmode="decimal"></div>
+              <div class="field"><label>I₂ (pu)</label><input type="number" id="i2" value="0.60" step="0.05" min="0" inputmode="decimal"></div>
+            </div>
+            <div class="zline" id="calcOut">Iop = 0.60 pu · Irt = 0.90 pu</div>
+            <button class="mini-btn hl" id="addPointBtn" style="width:100%;">Tambahkan titik ke plot</button>
+            <div class="curve-label" style="margin-top:11px;">Skenario</div>
+            <div class="btngroup" id="scenarioGroup">
+              <button data-v="normal">Normal</button>
+              <button data-v="external">Eksternal</button>
+              <button data-v="internal">Internal</button>
+              <button data-v="satct">Saturasi CT</button>
+            </div>
+            <div class="hint" id="scenHint">Skenario mengisi I₁ &amp; I₂ — titik bisa ditambahkan ke plot.</div>
+          </div></div>
+        </div>
+
+        <button id="animateBtn">▶ Animasikan: eksternal → internal</button>
+      </div>
+    </div>
+
+    <!-- ===== MAIN ===== -->
+    <div class="main">
+
+      <div class="plane-row">
+        <div class="plane-card">
+          <div class="hint-chip" id="planeHint">klik plot → titik uji · seret → pindah</div>
+          <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;"></svg>
+          <div class="legend" id="legend"></div>
+        </div>
+
+        <div class="side-card">
+          <div class="status" id="statusBox" style="background:var(--green-soft);">
+            <div class="zlabel" id="verdictLabel" style="color:var(--green);">RESTRAIN</div>
+            <div class="tlabel" id="marginLabel">—</div>
+          </div>
+          <div class="readout" id="readout"></div>
+          <div class="formula-box" id="formulaOut"></div>
+          <div class="edu-note" id="eduNote"></div>
+        </div>
+      </div>
+
+      <div class="points-card">
+        <div class="points-head">
+          <span class="pt">Daftar titik uji</span>
+          <span class="sp"></span>
+          <button class="mini-btn" id="clearPoints">Bersihkan semua</button>
+        </div>
+        <div class="table-wrap">
+          <table class="ptab">
+            <thead><tr><th>No</th><th>Sumber</th><th class="num">Irt (pu)</th><th class="num">Iop (pu)</th><th>Status</th><th class="num">Margin</th><th></th></tr></thead>
+            <tbody id="ptsBody"></tbody>
+          </table>
+          <div class="table-empty" id="tableEmpty">Belum ada titik uji. Klik plot untuk menempatkan, atau gunakan Kalkulator arus.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- modal: tentang model -->
+<div class="modal-bg" id="aboutBg">
+  <div class="modal" id="aboutModal">
+    <span class="close" id="aboutClose">✕</span>
+    <h3>Tentang model ini</h3>
+    <div class="sub">ANSI/IEEE 87 · percentage-restrained differential relay</div>
+    <p style="font-size:13px;margin:0 0 8px;">Simulator edukasi untuk memahami <b>karakteristik relay diferensial persentase</b> — bukan pengganti perangkat lunak setting relay komersial.</p>
+    <ul>
+      <li>Model <b>magnitudo 2-belitan</b>: arus operasi <span class="mono">Iop = |I₁ − I₂|</span> — bukan perhitungan fasor penuh (sudut, harmonik, DC offset).</li>
+      <li>Arus restraint Average <span class="mono">(|I₁|+|I₂|)/2</span> atau Maximum <span class="mono">max(|I₁|,|I₂|)</span>.</li>
+      <li>Tidak memodelkan saturasi CT domain-waktu, blocking harmonik ke-2/ke-5 (inrush / overexcitation), kompensasi tap changer, atau belitan ke-3.</li>
+      <li>Nilai default hanyalah acuan rentang umum industri, bukan setting akhir sistem nyata.</li>
+    </ul>
+    <div class="foot"><button class="mini-btn" id="aboutClose2">Tutup</button></div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script>
+/* =========================================================
+   Simulator Differential Relay (ANSI 87) — single file.
+   Model & keputusan trip mengikuti docs/PRD.md §5 (source of truth).
+   Gaya visual (palet, font, splash, kartu, collapse, lock tinggi
+   desktop, label ber-halo) mengikuti "Simulator Distance Relay".
+   ========================================================= */
+
+/* ---------- helpers ---------- */
+const fmt=(n,d=2)=>Number(n).toFixed(d);
+const clamp=(v,lo,hi)=>Math.min(hi,Math.max(lo,v));
+const fmtSign=v=> (v>=0?'+':'−')+fmt(Math.abs(v),1)+'%';
+function niceCeil(v){ if(v<=0)return 1; const base=Math.pow(10,Math.floor(Math.log10(v))); const m=v/base;
+  return (m<=1?1:m<=2?2:m<=5?5:10)*base; }
+function niceStep(range){ const raw=range/6; const base=Math.pow(10,Math.floor(Math.log10(raw))); const m=raw/base;
+  return (m<=1?1:m<=2?2:m<=5?5:10)*base; }
+
+/* ---------- state global ---------- */
+const MAX_SLOPES=4, MAX_BP=20;
+let uid=1;
+const freshSlopes=(arr)=>arr.map(s=>({id:uid++,percent:s.percent,breakpoint:s.breakpoint}));
+const DEFAULT_SLOPES=[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}];
+const PRESETS={
+  dual:{pickup:0.30,slopes:[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}]},
+  multi:{pickup:0.20,slopes:[{percent:25,breakpoint:1.5},{percent:40,breakpoint:4.0},{percent:80,breakpoint:null}]}
+};
+/* Skenario arus (pu) — mengisi I1/I2 kalkulator */
+const SCENARIOS={
+  normal:  {i1:1.00,i2:1.00,desc:'Beban normal: arus dua sisi hampir sama → Iop kecil, titik jauh di bawah kurva (RESTRAIN).'},
+  external:{i1:5.00,i2:4.75,desc:'Gangguan eksternal (through-fault): arus besar tetapi nyaris sama → Irt besar, Iop kecil → RESTRAIN. Inilah gunanya restraint.'},
+  internal:{i1:5.00,i2:0.00,desc:'Gangguan internal: arus hanya dari satu sisi → Iop = I₁ besar → TRIP kuat.'},
+  satct:   {i1:5.00,i2:3.00,desc:'Eksternal + CT saturasi: CT sisi 2 meleset rendah → Iop palsu membesar → bisa TRIP salah. Slope 2 yang curam menahannya.'}
+};
+
+const S={
+  param:{
+    pickup:0.30,
+    method:'average',               // 'average' | 'maximum'
+    slopes:freshSlopes(DEFAULT_SLOPES),
+    i1:1.20,i2:0.60,
+    points:[],                      // {id,source:'manual'|'calc',irt,iop,i1,i2}
+    selectedId:null,
+    probe:null,                     // titik animasi sementara {irt,iop}
+    probeTrace:null                 // jejak animasi {irt,iop}[] (pu)
+  },
+  ui:{collapsed:{curve:false,calc:false}}
+};
+const P=S.param;
+
+/* ---------- DOM ---------- */
+const $=id=>document.getElementById(id);
+const plane=$('plane');
+const els={
+  slopesContainer:$('slopesContainer'), warnings:$('warnings'), tbody:$('ptsBody'),
+  tableEmpty:$('tableEmpty'), readout:$('readout'), eduNote:$('eduNote'),
+  statusBox:$('statusBox'), verdictLabel:$('verdictLabel'), marginLabel:$('marginLabel'),
+  calcOut:$('calcOut'), formulaOut:$('formulaOut')
+};
+
+/* =========================================================
+   MODEL MURNI (PRD §5.2–§5.4) — diuji tools/*.test.js.
+   m = {pickup, method, slopes:[{percent,breakpoint}]}
+   ========================================================= */
+function iopOf(i1,i2){ return Math.abs(i1-i2); }
+function irtOf(i1,i2,method){ const a=Math.abs(i1),b=Math.abs(i2);
+  return method==='maximum' ? Math.max(a,b) : (a+b)/2; }
+/* garis slope kumulatif (tanpa pickup): nilai ambang linier per segmen */
+function slopeLine(pickup,slopes,irt){
+  let acc=0,prevB=0;
+  const n=slopes.length;
+  for(let i=0;i<n;i++){
+    const m=slopes[i].percent/100;
+    const up=i<n-1 ? slopes[i].breakpoint : Infinity;
+    if(irt<=up){ acc+=m*(irt-prevB); break; }
+    acc+=m*(up-prevB); prevB=up;
+  }
+  return acc;
+}
+function thresholdAt(m,irt){
+  return Math.max(m.pickup, slopeLine(m.pickup,m.slopes,irt));
+}
+function statusOf(m,iop,irt){ return iop>thresholdAt(m,irt)+1e-12 ? 'TRIP' : 'RESTRAIN'; }
+function marginOf(m,iop,irt){ const t=thresholdAt(m,irt);
+  return t<=1e-12 ? 0 : ((iop-t)/t)*100; }
+/* rentang sumbu (pu) dari kurva */
+function computeDomain(m){
+  const bps=m.slopes.filter(s=>s.breakpoint!=null).map(s=>s.breakpoint);
+  const lastBp=bps.length?Math.max(...bps):2;
+  const xMax=niceCeil(Math.max(lastBp*1.6,5));
+  const yMax=niceCeil(Math.max(thresholdAt(m,xMax)*1.2,m.pickup*1.6,1));
+  return {xMax,yMax};
+}
+/* titik sampel kurva ambang (tanpa efek pickup horizontal — thresholdAt sudah max) */
+function curveSample(m,xMax){
+  const pts=[];
+  const bps=m.slopes.filter(s=>s.breakpoint!=null).map(s=>s.breakpoint).filter(b=>b>0&&b<xMax);
+  const xs=[0].concat(bps,[xMax]);
+  const N=140;
+  for(let i=0;i<xs.length-1;i++){
+    const a=xs[i],b=xs[i+1];
+    const n=Math.max(2,Math.round(N*((b-a)/xMax)));
+    for(let j=0;j<=n;j++){ const irt=a+(b-a)*j/n; pts.push([irt,thresholdAt(m,irt)]); }
+  }
+  return pts;
+}
+
+/* =========================================================
+   BINDING KONTROL → S → render()
+   ========================================================= */
+let animTimer=null;
+function refresh(){ render(); }
+function bindPair(rangeId,numId,key,lo,hi,dec,suffix){
+  const r=$(rangeId), n=$(numId), out=$(key==='pickup'?'pickupv':null);
+  const commit=v=>{ v=clamp(Number(v),lo,hi); P[key]=v; r.value=v; n.value=v;
+    if(out) out.textContent=fmt(v,dec)+(suffix||''); };
+  r.addEventListener('input',()=>{ commit(r.value); refresh(); });
+  n.addEventListener('change',()=>{ commit(n.value); refresh(); });
+  n.addEventListener('input',()=>{ const v=parseFloat(n.value);
+    if(!Number.isNaN(v)){ const c=clamp(v,lo,hi); P[key]=c; r.value=c; if(out) out.textContent=fmt(c,dec)+(suffix||''); } });
+  commit(P[key]);
+}
+bindPair('pickup','pickupNum','pickup',0.05,0.5,2,' pu');
+
+function setMethod(m){
+  P.method=m;
+  $('methodHint').textContent = m==='average' ? 'Irt = (|I₁|+|I₂|)/2 — rata-rata'
+                                               : 'Irt = max(|I₁|,|I₂|) — konservatif';
+  recalcCalcPoints(); render();
+}
+document.querySelectorAll('#methodGroup button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#methodGroup button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); setMethod(b.dataset.v);
+}));
+
+/* slope: perubahan nilai (slider/angka) — DOM slope TIDAK dibangun ulang agar
+   drag slider tidak terputus; hanya model + turunan yang di-refresh. */
+$('slopesContainer').addEventListener('input',e=>{
+  const t=e.target;
+  if(!t.dataset||!t.dataset.slope) return;
+  const sid=Number(t.dataset.slope);
+  const s=P.slopes.find(x=>x.id===sid); if(!s) return;
+  const role=t.dataset.role;
+  const rowEls=document.querySelectorAll(`#slopesContainer input[data-slope="${sid}"][data-role="${role}"]`);
+  let v=parseFloat(t.value);
+  if(Number.isNaN(v)){ rowEls.forEach(x=>x.value=t.dataset.role==='bp'?s.breakpoint:s.percent); return; }
+  if(role==='percent'){
+    s.percent=clamp(v,1,200);
+  } else {
+    const idx=P.slopes.indexOf(s);
+    const prevBp=idx>0&&P.slopes[idx-1].breakpoint!=null?P.slopes[idx-1].breakpoint:0;
+    s.breakpoint=Math.round(clamp(v,Math.max(prevBp+0.1,0.5),MAX_BP)*10)/10;
+  }
+  rowEls.forEach(x=>{ if(x!==t) x.value=role==='percent'?s.percent:(s.breakpoint==null?'':s.breakpoint); });
+  recalcCalcPoints(); render();
+});
+$('slopesContainer').addEventListener('click',e=>{
+  const b=e.target.closest('[data-del-slope]');
+  if(b) removeSlope(Number(b.dataset.delSlope));
+});
+
+function renderSlopes(){
+  const el=els.slopesContainer;
+  el.innerHTML=P.slopes.map((s,i)=>{
+    const isLast=i===P.slopes.length-1;
+    const prevBp=i>0&&P.slopes[i-1].breakpoint!=null?P.slopes[i-1].breakpoint:0;
+    const next=P.slopes[i+1];
+    const minBp=i===0?0.6:Math.round((prevBp+0.1)*10)/10;
+    const maxBp=!isLast&&next&&next.breakpoint!=null?next.breakpoint-0.1:MAX_BP;
+    if(s.breakpoint!=null) s.breakpoint=Math.round(clamp(s.breakpoint,minBp,maxBp)*10)/10;
+    const del=i>0?`<button class="sdel" data-del-slope="${s.id}" aria-label="Hapus Slope ${i+1}" title="Hapus Slope ${i+1}">✕</button>`:'';
+    const ctrl=(role,val,lo,hi,step,unit)=>`
+      <div class="ctrlrow">
+        <input type="range" data-slope="${s.id}" data-role="${role}" min="${lo}" max="${hi}" step="${step}" value="${val}">
+        <input type="number" data-slope="${s.id}" data-role="${role}" min="${lo}" max="${hi}" step="${step}" value="${val}" inputmode="${role==='percent'?'numeric':'decimal'}">
+        <span class="unit">${unit}</span>
+      </div>`;
+    const bpField=isLast
+      ? `<div class="slope-note">Berlaku sampai arus tak hingga (slope terakhir).</div>`
+      : `<div class="field" style="margin:0;"><label>Breakpoint — Irt</label>${ctrl('bp',s.breakpoint,minBp,maxBp,0.1,'pu')}</div>`;
+    return `<div class="slope">
+      <div class="slope-h"><span class="sn">Slope ${i+1}</span>${del}</div>
+      <div class="field" style="margin-bottom:8px;"><label>Kemiringan</label>${ctrl('percent',s.percent,1,200,1,'%')}</div>
+      ${bpField}
+    </div>`;
+  }).join('');
+}
+function addSlope(){
+  if(P.slopes.length>=MAX_SLOPES) return;
+  /* breakpoint baru = 1.5× breakpoint terjauh yang ada (fallback 2.0 saat belum ada) */
+  const bps=P.slopes.map(x=>x.breakpoint).filter(b=>b!=null);
+  const lastBp=bps.length?Math.max(...bps):2;
+  const newBp=Math.min(Math.round(lastBp*1.5*10)/10,MAX_BP);
+  const last=P.slopes[P.slopes.length-1];
+  last.breakpoint=newBp;         // slope terakhir lama menjadi segmen tengah
+  P.slopes.push({id:uid++,percent:50,breakpoint:null});
+  edu={topic:'general'};
+  renderSlopes(); recalcCalcPoints(); render();
+}
+function removeSlope(id){
+  const idx=P.slopes.findIndex(x=>x.id===id);
+  if(idx<=0) return;                       // Slope 1 tidak bisa dihapus
+  const removed=P.slopes[idx];
+  P.slopes.splice(idx,1);
+  if(idx===P.slopes.length){ P.slopes[P.slopes.length-1].breakpoint=null; }
+  else { P.slopes[idx-1].breakpoint=removed.breakpoint; }
+  edu={topic:'general'};
+  renderSlopes(); recalcCalcPoints(); render();
+}
+$('addSlope').addEventListener('click',addSlope);
+
+/* preset kurva */
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{
+  const pr=PRESETS[b.dataset.preset];
+  P.pickup=pr.pickup;
+  P.slopes=freshSlopes(pr.slopes);
+  $('pickup').value=P.pickup; $('pickupNum').value=P.pickup; $('pickupv').textContent=fmt(P.pickup,2)+' pu';
+  edu={topic:'preset'};
+  renderSlopes(); recalcCalcPoints(); render();
+}));
+
+/* ---------- titik uji ---------- */
+function recalcCalcPoints(){
+  P.points.forEach(pt=>{
+    if(pt.source==='calc'){ pt.iop=iopOf(pt.i1,pt.i2); pt.irt=irtOf(pt.i1,pt.i2,P.method); }
+  });
+}
+function ptStatus(m,pt){ pt.thr=thresholdAt(m,pt.irt); pt.status=statusOf(m,pt.iop,pt.irt); pt.margin=marginOf(m,pt.iop,pt.irt); }
+function addPoint(source,irt,iop,i1,i2){
+  const m=P;
+  const pt={id:uid++,source,irt,iop,i1,i2,thr:0,status:'',margin:0};
+  ptStatus(m,pt);
+  P.points.push(pt);
+  P.selectedId=pt.id;
+  selectPoint(pt.id);
+}
+function removePoint(id){ P.points=P.points.filter(p=>p.id!==id);
+  if(P.selectedId===id) P.selectedId=null;
+  render(); }
+function clearPoints(){ P.points=[]; P.selectedId=null; P.probe=null; P.probeTrace=null; render(); }
+$('clearPoints').addEventListener('click',clearPoints);
+
+/* kalkulator arus */
+function updateCalcPreview(){
+  const i1=parseFloat($('i1').value), i2=parseFloat($('i2').value);
+  const ok=Number.isFinite(i1)&&Number.isFinite(i2);
+  els.calcOut.innerHTML=ok
+    ? `Iop = <b>${fmt(iopOf(Math.max(0,i1),Math.max(0,i2)))}</b> pu · Irt = <b>${fmt(irtOf(Math.max(0,i1),Math.max(0,i2),P.method))}</b> pu`
+    : 'Iop = — · Irt = —';
+}
+['i1','i2'].forEach(id=>$(id).addEventListener('input',updateCalcPreview));
+$('addPointBtn').addEventListener('click',()=>{
+  const i1=parseFloat($('i1').value), i2=parseFloat($('i2').value);
+  if(!Number.isFinite(i1)||!Number.isFinite(i2)) return;
+  const a1=Math.max(0,i1), a2=Math.max(0,i2);
+  addPoint('calc',irtOf(a1,a2,P.method),iopOf(a1,a2),a1,a2);
+});
+/* skenario: isi I1/I2 + jelaskan */
+document.querySelectorAll('#scenarioGroup button').forEach(b=>b.addEventListener('click',()=>{
+  const sc=SCENARIOS[b.dataset.v];
+  document.querySelectorAll('#scenarioGroup button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $('i1').value=sc.i1; $('i2').value=sc.i2;
+  P.i1=sc.i1; P.i2=sc.i2;
+  edu={topic:'scenario',text:sc.desc};
+  updateCalcPreview(); render();
+}));
+
+/* ---------- animasi sapuan: eksternal → internal ---------- */
+$('animateBtn').addEventListener('click',()=>{
+  const btn=$('animateBtn');
+  if(animTimer){ stopAnim(btn); return; }
+  btn.textContent='⏸ Hentikan animasi'; btn.classList.add('playing');
+  P.probeTrace=[];
+  const I1=4.0;
+  let t=0;
+  animTimer=setInterval(()=>{
+    t+=0.045;
+    if(t>=1){ stopAnim(btn); return; }
+    const ease=t*t*(3-2*t);                 // smoothstep 0..1
+    const I2=I1*(1-ease);                   // I2: dari I1 (eksternal/matching) → 0 (internal)
+    const iop=iopOf(I1,I2), irt=irtOf(I1,I2,P.method);
+    P.probe={irt,iop,i1:I1,i2:I2};
+    if(!P.probeTrace.length||iop>P.probeTrace[P.probeTrace.length-1][1]+1e-9){
+      P.probeTrace.push([irt,iop]);         // jejak hanya saat Iop naik (menuju trip)
+    }
+    render();
+  },40);
+});
+function stopAnim(btn){
+  if(!animTimer) return;
+  clearInterval(animTimer); animTimer=null;
+  if(btn){ btn.textContent='▶ Animasikan: eksternal → internal'; btn.classList.remove('playing'); }
+}
+
+/* ---------- collapse ---------- */
+function setCollapsed(card,state){
+  S.ui.collapsed[card]=state;
+  const c=document.querySelector(`.card[data-card="${card}"]`);
+  if(c) c.classList.toggle('collapsed',state);
+  syncCollapsedCentering(); schedulePlaneFit();
+}
+function syncCollapsedCentering(){
+  const cards=document.querySelectorAll('.card[data-card]');
+  const all=cards.length>0&&Array.from(cards).every(c=>!!S.ui.collapsed[c.dataset.card]);
+  $('paramsPanel').classList.toggle('all-collapsed',all);
+}
+document.querySelectorAll('.card-h').forEach(h=>h.addEventListener('click',()=>{
+  const card=h.parentElement.dataset.card;
+  setCollapsed(card,!S.ui.collapsed[card]);
+}));
+$('collapseAll').addEventListener('click',()=>document.querySelectorAll('.card[data-card]').forEach(c=>setCollapsed(c.dataset.card,true)));
+$('expandAll').addEventListener('click',()=>document.querySelectorAll('.card[data-card]').forEach(c=>setCollapsed(c.dataset.card,false)));
+
+/* ---------- modal tentang model ---------- */
+function openAbout(){ $('aboutBg').classList.add('show'); }
+function closeAbout(){ $('aboutBg').classList.remove('show'); }
+$('aboutBtn').addEventListener('click',openAbout);
+$('aboutClose').addEventListener('click',closeAbout);
+$('aboutClose2').addEventListener('click',closeAbout);
+$('aboutBg').addEventListener('click',e=>{ if(e.target===$('aboutBg')) closeAbout(); });
+
+/* =========================================================
+   RENDER BIDANG Iop–Irt (SVG adaptif, viewBox = ukuran elemen)
+   ========================================================= */
+const PAD={L:52,R:14,T:18,B:34};
+const FALLBACK={w:640,h:440};
+function planeDims(){
+  const cw=plane.clientWidth||0, ch=plane.clientHeight||0;
+  if(cw>10&&ch>10) return {w:Math.round(cw),h:Math.round(ch)};
+  return FALLBACK;
+}
+const X=m=>m.padL+(m.irt/m.m.xMax)*m.plotW;
+const Y=m=>m.padT+(1-m.iop/m.m.yMax)*m.plotH;
+const px2=(x)=>x.toFixed(2);
+
+function renderPlane(){
+  const m=P;
+  const dims=planeDims();
+  plane.setAttribute('viewBox',`0 0 ${dims.w} ${dims.h}`);
+  const padL=PAD.L,padR=PAD.R,padT=PAD.T,padB=PAD.B;
+  const plotW=dims.w-padL-padR, plotH=dims.h-padT-padB;
+  const dom=computeDomain(m);
+  const {xMax,yMax}=dom;
+  const map={m,padL,padR,padT,padB,plotW,plotH,xMax,yMax};
+  plane._map=map;
+  const Xx=irt=>padL+(irt/xMax)*plotW;
+  const Yy=iop=>padT+(1-iop/yMax)*plotH;
+  const pts=curveSample(m,xMax);
+
+  /* grid 1-2-5 + tick label ber-halo putih */
+  const xStep=niceStep(xMax), yStep=niceStep(yMax);
+  let gridV='',gridH='',tickX='',tickY='';
+  for(let v=xStep;v<=xMax+1e-9;v+=xStep){
+    const pxv=Xx(v);
+    gridV+=`<line x1="${pxv}" y1="${padT}" x2="${pxv}" y2="${padT+plotH}" stroke="var(--line)" stroke-width="1"/>`;
+    tickX+=`<text x="${pxv}" y="${padT+plotH+16}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--ink-soft)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${fmt(v,v%1===0?0:1)}</text>`;
+  }
+  for(let v=yStep;v<=yMax+1e-9;v+=yStep){
+    const pyv=Yy(v);
+    gridH+=`<line x1="${padL}" y1="${pyv}" x2="${padL+plotW}" y2="${pyv}" stroke="var(--line)" stroke-width="1"/>`;
+    tickY+=`<text x="${padL-8}" y="${pyv+3.5}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--ink-soft)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${fmt(v,v%1===0?0:1)}</text>`;
+  }
+
+  /* poligon daerah TRIP (atas kurva) & RESTRAIN (bawah kurva) */
+  const toPoly=a=>a.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
+  const restPts=[[0,0],[xMax,0],...pts.slice().reverse()];
+  const tripPts=[[0,yMax],[xMax,yMax],...pts.slice().reverse()];
+
+  /* kurva ambang + garis pickup putus-putus + marker breakpoint */
+  const curvePoly=pts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
+  let bpMarkers='';
+  m.slopes.forEach((s,i)=>{
+    if(s.breakpoint!=null&&s.breakpoint<xMax){
+      const bx=Xx(s.breakpoint),by=Yy(thresholdAt(m,s.breakpoint));
+      bpMarkers+=`<circle cx="${bx.toFixed(2)}" cy="${by.toFixed(2)}" r="3.6" fill="var(--surface)" stroke="var(--teal)" stroke-width="1.6"/>`;
+      bpMarkers+=`<text x="${bx.toFixed(2)}" y="${(by-8).toFixed(2)}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9.5" fill="var(--teal)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">BP${i+1}</text>`;
+    }
+  });
+  const pickupY=Yy(m.pickup);
+  const pickupDash=`<line x1="${Xx(0)}" y1="${pickupY}" x2="${Xx(xMax)}" y2="${pickupY}" stroke="var(--copper)" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+
+  /* titik uji (warna status) + titik animasi + jejak */
+  const ptSvg=pt=>{
+    const sel=pt.id===P.selectedId;
+    const col=pt.status==='TRIP'?'var(--red)':'var(--green)';
+    return `<circle cx="${Xx(pt.irt).toFixed(2)}" cy="${Yy(pt.iop).toFixed(2)}" r="${sel?7:5.5}" fill="${col}"
+      stroke="${sel?'var(--ink)':'var(--surface)'}" stroke-width="${sel?2.5:1.6}" data-point="${pt.id}"/>`;
+  };
+  let ptsStr=P.points.map(ptSvg).join('');
+  if(P.probe){
+    const col=P.probe.i2<=1e-9?'var(--red)':'var(--copper)';
+    ptsStr+=`<circle cx="${Xx(P.probe.irt).toFixed(2)}" cy="${Yy(P.probe.iop).toFixed(2)}" r="6" fill="none" stroke="${col}" stroke-width="2">
+      <animate attributeName="r" values="5;9;5" dur="0.8s" repeatCount="indefinite"/></circle>`;
+    ptsStr+=`<circle cx="${Xx(P.probe.irt).toFixed(2)}" cy="${Yy(P.probe.iop).toFixed(2)}" r="3.4" fill="${col}"/>`;
+  }
+  if(P.probeTrace&&P.probeTrace.length>1){
+    const tr=P.probeTrace.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
+    ptsStr=`<polyline points="${tr}" fill="none" stroke="var(--copper)" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.7"/>`+ptsStr;
+  }
+
+  plane.innerHTML=`
+    <defs><clipPath id="pc"><rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}"/></clipPath></defs>
+    <rect x="${padL}" y="${padT}" width="${plotW}" height="${plotH}" fill="transparent" data-plot-bg/>
+    ${gridV}${gridH}
+    <polygon points="${toPoly(restPts)}" fill="var(--green-soft)" opacity="0.55" clip-path="url(#pc)"/>
+    <polygon points="${toPoly(tripPts)}" fill="var(--red-soft)" opacity="0.5" clip-path="url(#pc)"/>
+    ${pickupDash}
+    <text x="${padL+5}" y="${(pickupY-5).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9.5" fill="var(--copper)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">pickup</text>
+    <polyline points="${curvePoly}" fill="none" stroke="var(--ink)" stroke-width="2.1" stroke-linejoin="round" clip-path="url(#pc)"/>
+    ${bpMarkers}
+    <text x="${(padL+plotW-8)}" y="${Yy(yMax*0.9).toFixed(2)}" text-anchor="end" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--red)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH TRIP</text>
+    <text x="${padL+8}" y="${Yy(yMax*0.06).toFixed(2)}" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--green)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH RESTRAIN</text>
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="var(--ink-soft)" stroke-width="1"/>
+    <line x1="${padL}" y1="${padT+plotH}" x2="${padL+plotW}" y2="${padT+plotH}" stroke="var(--ink-soft)" stroke-width="1"/>
+    ${tickX}${tickY}
+    <text x="${padL+plotW/2}" y="${dims.h-8}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)">Irt — arus restraint (pu)</text>
+    <text x="13" y="${padT+plotH/2}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)" transform="rotate(-90 13 ${padT+plotH/2})">Iop — arus operasi (pu)</text>
+    ${ptsStr}`;
+
+  /* legenda */
+  $('legend').innerHTML=`
+    <span><i style="background:var(--ink);"></i>kurva ambang</span>
+    <span><i style="background:var(--copper);"></i>pickup</span>
+    <span><i style="background:var(--red-soft);"></i>daerah TRIP</span>
+    <span><i style="background:var(--green-soft);"></i>daerah RESTRAIN</span>
+    <span><i style="background:var(--green);border-radius:50%;"></i>titik RESTRAIN</span>
+    <span><i style="background:var(--red);border-radius:50%;"></i>titik TRIP</span>`;
+}
+
+/* ---------- interaksi plot: klik tambah, seret pindah ---------- */
+function pointerToPu(e){
+  const rect=plane.getBoundingClientRect();
+  if(!rect.width||!rect.height) return null;
+  const dims=planeDims();
+  const scaleX=dims.w/rect.width, scaleY=dims.h/rect.height;
+  const px=(e.clientX-rect.left)*scaleX, py=(e.clientY-rect.top)*scaleY;
+  const map=plane._map; if(!map) return null;
+  const irt=clamp(((px-map.padL)/map.plotW)*map.xMax,0,map.xMax);
+  const iop=clamp(map.yMax*(1-(py-map.padT)/map.plotH),0,map.yMax);
+  return {irt,iop};
+}
+const round2=v=>Math.round(v*100)/100;
+let dragId=null;
+plane.addEventListener('pointerdown',e=>{
+  const c=e.target.closest?e.target.closest('[data-point]'):null;
+  if(c){ selectPoint(Number(c.dataset.point)); dragId=P.selectedId; e.preventDefault(); return; }
+  if(e.target.hasAttribute&&e.target.hasAttribute('data-plot-bg')){
+    const pos=pointerToPu(e);
+    if(pos){ addPoint('manual',round2(pos.irt),round2(pos.iop),null,null); }
+  }
+});
+window.addEventListener('pointermove',e=>{
+  if(dragId==null) return;
+  const pt=P.points.find(p=>p.id===dragId); if(!pt) return;
+  const pos=pointerToPu(e);
+  if(pos){ pt.irt=round2(pos.irt); pt.iop=round2(pos.iop); render(); }
+});
+window.addEventListener('pointerup',()=>{ dragId=null; });
+
+/* ---------- tabel titik ---------- */
+function renderTable(){
+  const m=P;
+  els.tbody.innerHTML=P.points.map((pt,i)=>{
+    const sel=pt.id===P.selectedId?' sel':'';
+    const src=pt.source==='manual'?'Manual':'Dari arus';
+    return `<tr class="${sel?sel.trim():''}" data-row="${pt.id}">
+      <td>${i+1}</td><td>${src}</td>
+      <td class="num">${fmt(pt.irt)}</td><td class="num">${fmt(pt.iop)}</td>
+      <td><span class="badge ${pt.status}">${pt.status}</span></td>
+      <td class="num">${fmtSign(pt.margin)}</td>
+      <td><button class="rowdel" data-del="${pt.id}" aria-label="Hapus titik ${i+1}">✕</button></td>
+    </tr>`;
+  }).join('');
+  els.tableEmpty.style.display=P.points.length?'none':'block';
+}
+els.tbody.addEventListener('click',e=>{
+  const del=e.target.closest('[data-del]');
+  if(del){ removePoint(Number(del.dataset.del)); return; }
+  const tr=e.target.closest('tr[data-row]');
+  if(tr) selectPoint(Number(tr.dataset.row));
+});
+
+/* ---------- kartu kanan: status + readout + formula + edukasi ---------- */
+let edu={topic:'general'};
+const STATUS_C={TRIP:'var(--red)',RESTRAIN:'var(--green)'};
+const STATUS_S={TRIP:'var(--red-soft)',RESTRAIN:'var(--green-soft)'};
+function renderSide(){
+  const m=P;
+  const selPt=P.points.find(p=>p.id===P.selectedId)||P.probe;
+  const stBox=els.statusBox, vl=els.verdictLabel, ml=els.marginLabel;
+  if(selPt){
+    ptStatus(m,selPt);
+    vl.textContent=selPt.status;
+    vl.style.color=STATUS_C[selPt.status];
+    stBox.style.background=STATUS_S[selPt.status];
+    ml.textContent=`margin ${fmtSign(selPt.margin)} · ${selPt.status==='TRIP'?'di atas kurva':'di bawah kurva'}`;
+  } else if(P.points.length){
+    vl.textContent='—'; ml.textContent='pilih titik dari tabel atau plot';
+    stBox.style.background='var(--bg)'; vl.style.color='var(--ink-soft)';
+  } else {
+    vl.textContent='—'; ml.textContent='belum ada titik uji';
+    stBox.style.background='var(--bg)'; vl.style.color='var(--ink-soft)';
+  }
+  /* ringkasan + grup readout */
+  let summary,rowsTitik,rowsKep;
+  if(selPt){
+    const t=thresholdAt(m,selPt.irt);
+    const srcTxt=selPt.source==='calc'
+      ? (selPt.i1!=null?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
+      : (selPt.i1!=null?'Animasi sapuan':'Klik pada plot');
+    const ok=selPt.status==='TRIP';
+    summary=ok
+      ? `Titik di <b>Irt ${fmt(selPt.irt)} pu</b> dengan <b>Iop ${fmt(selPt.iop)} pu</b> berada di <b>atas</b> ambang ${fmt(t)} pu → <b>TRIP</b> (margin ${fmtSign(selPt.margin)}).`
+      : `Titik di <b>Irt ${fmt(selPt.irt)} pu</b> dengan <b>Iop ${fmt(selPt.iop)} pu</b> masih di <b>bawah</b> ambang ${fmt(t)} pu → <b>RESTRAIN</b> (margin ${fmtSign(selPt.margin)}).`;
+    rowsTitik=`
+      <div class="rline"><span>Sumber titik</span><span>${srcTxt}</span></div>
+      <div class="rline key"><span>Irt (restraint)</span><span>${fmt(selPt.irt)} pu</span></div>
+      <div class="rline key"><span>Iop (operasi)</span><span>${fmt(selPt.iop)} pu</span></div>
+      <div class="rline"><span>Ambang kurva</span><span>${fmt(t)} pu</span></div>`;
+    rowsKep=`
+      <div class="rline"><span>Keputusan</span><span>${selPt.status}</span></div>
+      <div class="rline"><span>Margin</span><span>${fmtSign(selPt.margin)}</span></div>
+      <div class="rline"><span>Selisih Iop − ambang</span><span>${ok?'+':'−'}${fmt(Math.abs(selPt.iop-t))} pu</span></div>`;
+  } else {
+    summary='Belum ada titik uji. <b>Klik plot</b> untuk menempatkan titik manual, isi <b>I₁/I₂</b> di Kalkulator arus, atau pilih <b>Skenario</b> — setiap titik langsung dinilai TRIP/RESTRAIN.';
+    rowsTitik='';
+    rowsKep='';
+  }
+  els.readout.innerHTML=`
+    <div class="r-sum">${summary}</div>
+    ${rowsTitik?`<div class="rgroup"><div class="rgroup-title">Titik uji</div>${rowsTitik}</div>`:''}
+    ${rowsKep?`<div class="rgroup"><div class="rgroup-title">Keputusan</div>${rowsKep}</div>`:''}`;
+
+  /* formula KaTeX */
+  const eq=selPt
+    ? (selPt.source==='calc'
+        ? `I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(selPt.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(selPt.irt)}\\,\\text{pu}`
+        : `I_{op}=${fmt(selPt.iop)}\\,\\text{pu} > ${fmt(thresholdAt(m,selPt.irt))}\\,\\text{pu}=f(I_{rt})`)
+    : `I_{op}=|I_1-I_2|,\\qquad I_{rt}=\\begin{cases}(|I_1|+|I_2|)/2,&\\text{Average}\\\\\\max(|I_1|,|I_2|),&\\text{Maximum}\\end{cases}`;
+  if(typeof katex==='function') katex.render(eq,els.formulaOut,{displayMode:true,throwOnError:false});
+  else els.formulaOut.textContent='Iop = |I1 − I2|  ·  Irt = (|I1|+|I2|)/2  atau  max(|I1|,|I2|)';
+
+  renderEdu();
+}
+
+/* edukasi kontekstual (PRD §6.5) — berubah sesuai kontrol yang disentuh */
+function renderEdu(){
+  const t=edu.topic;
+  let html;
+  if(t==='pickup'){
+    html=`<b>Minimum pickup (${fmt(P.pickup)} pu)</b> = batas bawah sensitivitas: berapa pun Irt, relay tidak trip bila Iop di bawah garis ini. Naikkan → tahan trip palsu dari error CT kecil; turunkan → lebih sensitif ke gangguan internal.`;
+  } else if(t==='slope'&&edu.index!=null){
+    const s=P.slopes[edu.index];
+    html=`<b>Slope ${edu.index+1} (${s.percent}%)</b> = kemiringan kurva ambang. Slope 1 mengakomodasi ketidakcocokan CT & tap changer pada arus moderat; slope lebih curam memberi stabilitas saat arus through besar (saturasi CT).`;
+  } else if(t==='breakpoint'&&edu.index!=null){
+    const s=P.slopes[edu.index];
+    html=`<b>Breakpoint ${edu.index+2}</b> di <span class="mono">Irt ${s.breakpoint==null?'∞':fmt(s.breakpoint)+' pu'}</span>: titik tempat kurva beralih dari Slope ${edu.index+1} ke Slope ${edu.index+2}. Geser ke kiri → relay lebih cepat memakai slope stabilitas tinggi.`;
+  } else if(t==='method'){
+    html=`<b>Metode restraint</b> menentukan Irt titik dari kalkulator: <span class="mono">Average=(|I₁|+|I₂|)/2</span> atau <span class="mono">Maximum=max(|I₁|,|I₂|)</span>. Maximum memberi Irt lebih besar → titik bergeser kanan → umumnya lebih konservatif. Kurva ambang tidak berubah.`;
+  } else if(t==='preset'){
+    html=`Preset diterapkan. <b>Dual-slope</b> = konfigurasi umum 25%/65%; <b>Multi adaptif</b> menambah slope ke-3 agar tetap sensitif di arus menengah namun stabil di arus sangat besar.`;
+  } else if(t==='scenario'){
+    html=edu.text||'';
+  } else if(t==='point'){
+    html=`<b>Di atas kurva ambang → TRIP</b> (indikasi gangguan internal yang sah); <b>di bawah → RESTRAIN</b> (perbedaan arus masih wajar). Margin positif besar = keputusan trip kuat; negatif = aman, makin jauh makin kuat menahan.`;
+  } else {
+    html=`<b>Bagaimana relay memutuskan?</b> Arus operasi <span class="mono">Iop = |I₁ − I₂|</span> dibandingkan dengan ambang kurva pada arus restraint <span class="mono">Irt</span> (Average/Maximum). Titik di <b>atas</b> kurva → <b>TRIP</b>; di <b>bawah</b> → <b>RESTRAIN</b>. Sentuh kontrol kiri untuk penjelasan kontekstual.`;
+  }
+  els.eduNote.innerHTML=html;
+}
+function selectPoint(id){
+  P.selectedId=P.points.some(p=>p.id===id)?id:null;
+  edu={topic:'point'};
+  render();
+}
+/* hover pada plot → tooltip kecil */
+plane.addEventListener('pointermove',e=>{
+  const c=e.target.closest?e.target.closest('[data-point]'):null;
+  if(!c) return;
+  const pt=P.points.find(p=>p.id===Number(c.dataset.point));
+  if(pt) plane.title=`Irt ${fmt(pt.irt)} pu · Iop ${fmt(pt.iop)} pu · ${pt.status} (${fmtSign(pt.margin)})`;
+});
+plane.addEventListener('pointerleave',()=>{ plane.title=''; });
+
+/* ---------- peringatan non-blocking (PRD §5.6) ---------- */
+function renderWarnings(){
+  const out=[];
+  const n=P.slopes.length;
+  for(let i=0;i<n-1;i++){
+    const b=P.slopes[i].breakpoint;
+    const prev=i>0&&P.slopes[i-1].breakpoint!=null?P.slopes[i-1].breakpoint:0;
+    if(b!=null&&b<=prev) out.push(`<div class="warn warn-invalid">Breakpoint Slope ${i+2} harus lebih besar dari ${fmt(prev)} pu — breakpoint harus berurutan naik.</div>`);
+  }
+  P.slopes.forEach((s,i)=>{
+    if(s.percent<1) out.push(`<div class="warn">Slope ${i+1} di bawah 1% — kurva hampir datar; tidak umum di industri.</div>`);
+  });
+  if(n>=2&&P.slopes[0].breakpoint!=null&&P.slopes[1].percent<P.slopes[0].percent){
+    out.push(`<div class="warn">Kombinasi tidak umum: Slope 2 (${P.slopes[1].percent}%) lebih kecil dari Slope 1 (${P.slopes[0].percent}%). Kurva tetap digambar — silakan eksplorasi.</div>`);
+  }
+  els.warnings.innerHTML=out.join('');
+}
+
+/* ---------- master render ---------- */
+function render(){
+  /* status tiap titik dihitung ulang thd kurva SAAT INI (manual & kalkulator) */
+  P.points.forEach(pt=>{ if(pt.source==='calc'){ pt.iop=iopOf(pt.i1,pt.i2); pt.irt=irtOf(pt.i1,pt.i2,P.method); } ptStatus(P,pt); });
+  renderPlane();
+  renderTable();
+  renderSide();
+  renderWarnings();
+  updateCalcPreview();
+}
+
+/* ---------- splash pembuka (sama dgn Distance Relay) ---------- */
+(function(){
+  const sp=$('splash'), root=$('root');
+  if(!sp||!root) return;
+  let gone=false; const timers=[];
+  const skip=()=>{
+    if(gone) return; gone=true;
+    timers.forEach(t=>clearTimeout(t));
+    root.classList.add('ready');
+    if(typeof sp.remove==='function') sp.remove();
+  };
+  try{ if(matchMedia('(prefers-reduced-motion: reduce)').matches) return skip(); }catch(e){}
+  timers.push(setTimeout(()=>sp.classList.add('go'),20));
+  timers.push(setTimeout(()=>{ sp.classList.add('out'); root.classList.add('ready'); },1350));
+  timers.push(setTimeout(skip,1860));
+  sp.addEventListener('click',skip);
+})();
+
+/* ---------- fit kanvas R–X… maaf, Iop–Irt ke kartu (guard dimensi) ---------- */
+function fitPlane(){
+  const pc=document.querySelector('.plane-card');
+  if(!pc||!plane) return;
+  const r=pc.getBoundingClientRect();
+  const lg=$('legend');
+  const hLg=lg?lg.getBoundingClientRect().height+8:0;
+  const w=Math.max(280,Math.round(r.width-36));
+  const h=Math.max(240,Math.round(r.height-hLg-34));
+  plane.style.width=w+'px';
+  plane.style.height=h+'px';
+  const dims=w+'x'+h;
+  if(plane._dims!==dims){ plane._dims=dims; render(); }
+}
+function schedulePlaneFit(){ setTimeout(fitPlane,60); }
+(function(){
+  const pc=document.querySelector('.plane-card');
+  if(!pc) return;
+  const ro=new ResizeObserver(()=>fitPlane());
+  ro.observe(pc);
+  addEventListener('resize',()=>fitPlane());
+  document.querySelectorAll('.card-h').forEach(hd=>hd.addEventListener('click',schedulePlaneFit));
+  fitPlane();
+})();
+
+/* ---------- init ---------- */
+updateCalcPreview();
+renderSlopes();
+render();
+syncCollapsedCentering();
+</script>
+</body>
+</html>
