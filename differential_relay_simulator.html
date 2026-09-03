@@ -1109,6 +1109,24 @@ updateCalcPreview();
 renderSlopes();
 render();
 syncCollapsedCentering();
+
+/* =========================================================
+   EKSPOR UNTUK TES — SATU-SATUNYA sumber kebenaran daftar
+   `__pub`. tools/lens-harness.js cukup menambahkan
+   `;global.__pub=API;` — JANGAN duplikasi daftar fungsi di
+   harness. Fungsi baru yang perlu diuji cukup ditambahkan DI
+   SINI (letaknya persis di dekat definisinya, bukan di file
+   tes). Seam yang diuji tetap: string SVG #plane + model murni.
+   ========================================================= */
+const API={
+  render, S, P,
+  thresholdAt, statusOf, marginOf, iopOf, irtOf, evaluatePoint,
+  computeDomain, curveSample, slopeLine,
+  slopeList, SL,
+  syncCollapsedCentering,
+  addPoint, selectPoint, clearPoints, removePoint,
+  renderPlane, setMethod, stopAnim
+};
 </script>
 </body>
 </html>

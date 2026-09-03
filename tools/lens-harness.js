@@ -1,7 +1,8 @@
 /* Harness mock-DOM utk menjalankan <script> differential_relay_simulator.html di Node.
    Pola tools/lens-harness.js proyek Distance Relay: stub document/window dgn elemen
-   yang menangkap innerHTML, jalankan isi <script> via new Function, lalu ekspor
-   __pub{render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,computeDomain,curveSample}.
+   yang menangkap innerHTML, jalankan isi <script> via new Function. Daftar fungsi yang
+   diekspor TIDAK dikelola di sini — aplikasi sendiri mempublikasikan `const API` di
+   akhir script-nya; harness cukup menambahkan `;global.__pub=API;` (satu sumber kebenaran).
    Seam yang diuji: string SVG #plane + nilai model murni. */
 'use strict';
 const fs = require('fs');
@@ -79,7 +80,7 @@ function loadSimulator(htmlPath) {
   global.ResizeObserver = class { observe() {} };
   global.katex = { render() {} };
 
-  new Function(code + ';global.__pub={render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,evaluatePoint,computeDomain,curveSample,slopeLine,slopeList,SL,syncCollapsedCentering,addPoint,selectPoint,clearPoints,renderPlane,setMethod,stopAnim,removePoint};')();
+  new Function(code + ';global.__pub=API;')();
 
   const pub = global.__pub;
   if (!pub || !pub.render) throw new Error('simulator did not export __pub');

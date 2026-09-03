@@ -45,7 +45,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `docs/overview.md` | Dokumen ini. |
 | `CLAUDE.md` | Panduan arsitektur/konvensi untuk agen coding. |
 | `README.md` | Deskripsi publik + cara menjalankan + validasi. |
-| `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, ekspor `__pub{render,S,P,thresholdAt,statusOf,marginOf,iopOf,irtOf,computeDomain,…}` + elemen tertangkap (`els.<id>.innerHTML`). |
+| `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
 | `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI. `node tools/ui.test.js`. |
@@ -102,6 +102,8 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 - **Jangan clamp/normalisasi slope di luar `slopeList`** — modul itu satu-satunya pemilik
   invariant; `renderSlopes` membaca batas via `SL.bounds(id)` (tidak menghitung ulang,
   tidak memutasi `breakpoint` saat render).
+- **Ekspor utk tes = `const API` di akhir script** — harness hanya menambahkan
+  `;global.__pub=API;`; jangan duplikasi daftar fungsi di `tools/lens-harness.js`.
 - **Status titik DERIVED via `evaluatePoint(m,pt)`** — titik menyimpan input saja
   (manual: `{irt,iop}` klik/seret; `'calc'`: `{i1,i2}` yang koordinatnya mengikuti
   metode restraint). `thr/status/margin` dihitung tiap render, tidak pernah disimpan →

@@ -113,8 +113,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 
 - Teks UI & dokumentasi: Bahasa Indonesia (konsisten dgn Distance Relay).
 - Model 1 file; renderer murni memakai string SVG → mudah diuji lewat harness.
-- Tambah fungsi baru yang perlu diuji → ekspor di daftar `__pub` di
-  `tools/lens-harness.js` (pola `new Function(code + ';global.__pub={…}')`).
+- Tambah fungsi baru yang perlu diuji → cukup daftarkan di **`const API`** di akhir
+  script aplikasi (dekat definisinya). Harness (`tools/lens-harness.js`) hanya
+  menambahkan `;global.__pub=API;` — daftar ekspor TIDAK boleh diduplikasi di harness.
   Contoh terpasang: `slopeList` (fabrik — tes membuat instance sintetis sendiri) dan
   `SL` (instance aplikasi — tes DOM melewatinya).
 - File tes meng-hard-code nama HTML — update bila rename.
