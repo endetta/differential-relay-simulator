@@ -381,5 +381,72 @@ check('hoverInfo: garis pickup (0.5, 0.30) → kind pickup; area kosong → null
   if (empty) throw new Error('area kosong harus null, dapat ' + empty.kind);
 });
 
+/* ===== revisi: tooltip hilang saat kursor lepas (bug hidden kalah CSS display) ===== */
+check('tooltip: class show (display:none default) — bug hidden CSS diperbaiki', () => {
+  const tipRule = src.match(/\.plane-card \.tip\{[^}]*\}/);
+  if (!tipRule) throw new Error('rule .plane-card .tip tidak ditemukan');
+  if (!tipRule[0].includes('display:none')) throw new Error('default .tip harus display:none (hidden attr kalah CSS display:flex)');
+  contains(src, '.plane-card .tip.show', 'css .show');
+  contains(src, "tip.classList.add('show')", 'js show');
+  contains(src, "tip.classList.remove('show')", 'js hide');
+  if (src.includes('tip.hidden')) throw new Error('jangan pakai tip.hidden — CSS display:flex menimpanya');
+  if (src.includes('planeTip" hidden')) throw new Error('markup tak boleh memakai hidden attr');
+});
+
+/* ===== revisi: legenda sederhana (3 item saja) ===== */
+check('legenda: hanya titik TRIP/RESTRAIN/sejati — tanpa item lain', () => {
+  render();
+  const lg = E.legend.innerHTML;
+  contains(lg, 'titik TRIP', 'legenda TRIP');
+  contains(lg, 'titik RESTRAIN', 'legenda RESTRAIN');
+  contains(lg, 'titik sejati', 'legenda sejati');
+  ['kurva ambang', 'daerah TRIP', 'pickup'].forEach(w => {
+    if (lg.includes(w)) throw new Error('legenda tak boleh memuat: ' + w);
+  });
+});
+
+/* ===== revisi: scrollbar tipis GLOBAL (bukan bawaan browser) ===== */
+check('scrollbar tipis global: * scrollbar-width + ::-webkit-scrollbar 6px', () => {
+  contains(src, '*{scrollbar-width:thin', 'scrollbar-width global');
+  contains(src, 'scrollbar-color:var(--line) transparent', 'scrollbar-color');
+  contains(src, '*::-webkit-scrollbar{width:6px', 'webkit global');
+  contains(src, 'scrollbar-gutter:stable', 'gutter tetap');
+});
+
+/* ===== revisi: kartu error — hint singkat + baris live errOut ===== */
+check('kartu error: hint singkat (tanpa paragraf) + errOut live', () => {
+  contains(src, 'id="errOut"', 'errOut markup');
+  contains(src, 'keputusan di titik terukur', 'hint singkat');
+  if (src.includes('arus sekunder yang DILIHAT relay mengecil')) throw new Error('paragraf panjang masih ada');
+});
+check('errOut live: ct2=50 → I₂ 5.00 → 2.50 pu; tanpa error → identitas', () => {
+  E.i1.value = '5'; E.i2.value = '5';
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 50; pub.P.err.mm = 0;
+  render();
+  contains(E.errOut.textContent, 'I₂ 5.00 → 2.50 pu', 'errOut terukur');
+  contains(E.errOut.textContent, 'I₁ 5.00 → 5.00 pu', 'errOut sisi 1 tetap');
+  pub.zeroErrors(); render();
+  contains(E.errOut.textContent, 'I₂ 5.00 → 5.00 pu', 'errOut tanpa error');
+});
+
+/* ===== revisi: keterangan ringkas (metode & skenario) ===== */
+check('hint metode: formula saja (tanpa kalimat rata-rata/konservatif)', () => {
+  contains(src, 'id="methodHint">Irt = (|I₁|+|I₂|)/2', 'markup default');
+  pub.setMethod('maximum');
+  if (E.methodHint.textContent !== 'Irt = max(|I₁|,|I₂|)') throw new Error('methodHint maximum: ' + E.methodHint.textContent);
+  pub.setMethod('average');
+  if (E.methodHint.textContent !== 'Irt = (|I₁|+|I₂|)/2') throw new Error('methodHint average: ' + E.methodHint.textContent);
+  if (src.includes('— konservatif')) throw new Error('kalimat metode masih ada');
+});
+check('hint skenario: default & desc singkat (bukan paragraf)', () => {
+  contains(src, 'id="scenHint">Skenario mengisi I₁ &amp; I₂', 'default singkat');
+  pub.runScenario('satct');
+  if (!E.scenHint.innerHTML.includes('TRIP PALSU')) throw new Error('scenHint satct: ' + E.scenHint.innerHTML);
+  if (E.scenHint.innerHTML.includes('Inilah alasan slope 2')) throw new Error('desc panjang satct masih ada');
+  pub.runScenario('inrush');
+  if (!E.scenHint.innerHTML.includes('harmonik')) throw new Error('scenHint inrush: ' + E.scenHint.innerHTML);
+  if (E.scenHint.innerHTML.includes('Pembanding: kurva saja')) throw new Error('desc panjang inrush masih ada');
+});
+
 console.log(`\n${passed} lulus, ${failed} gagal`);
 process.exit(failed ? 1 : 0);

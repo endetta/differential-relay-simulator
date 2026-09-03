@@ -39,7 +39,7 @@ inti tetap berjalan tanpanya.
 - **Daftar titik uji**: tabel dengan badge status TRIP/RESTRAIN, margin (%), hapus,
   sorot, bersihkan
 - **Kartu kanan nilai-langsung**: kotak status + baris label→nilai + formula KaTeX —
-  tanpa kalimat panjang
+  tanpa kalimat panjang; legenda plot sederhana (3 item); scrollbar tipis global
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
   (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding), animasi sapuan
   *eksternal → internal* dengan titik berjalan menyeberangi kurva
@@ -60,7 +60,7 @@ inti tetap berjalan tanpanya.
 ```bash
 node tools/model.test.js       # model: threshold multi-slope, status, margin, error CT (42 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (46 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (53 asersi)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

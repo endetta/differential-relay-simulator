@@ -38,7 +38,7 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 42 asersi literals model murni (PRD §5 + error CT)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 46 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 53 asersi seam desain & perilaku UI
 ```
 
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
@@ -88,7 +88,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    kalimat ringkasan & TANPA kotak edukasi; indikator PALSU/TERLEWAT = sisipan kecil di
    baris margin kotak status), `renderWarnings` (peringatan non-blocking PRD §5.6).
    **Tooltip hover** (elemen saja, margin ±10 px): `hoverInfo(map,irt,iop)` murni →
-   `{kind:'point'|'bp'|'pickup'|'curve', head, rows}`; `#planeTip` ikut kursor.
+   `{kind:'point'|'bp'|'pickup'|'curve', head, rows}`; `#planeTip` ikut kursor —
+   **default `display:none`, tampil via class `.show`** (JANGAN pakai attr `hidden`:
+   CSS `display` menimpanya → tooltip tak pernah hilang — bug lama). Legenda di bawah
+   kurva **3 item saja** (titik TRIP / RESTRAIN / sejati) — info lain sudah berlabel
+   di kurva. Scrollbar tipis GLOBAL via `*{scrollbar-width:thin…}` + `::-webkit-*` 6px.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
    gotcha di bawah).

@@ -30,13 +30,14 @@
   .card.collapsed .card-b{grid-template-rows:0fr;opacity:0;}
   .card.collapsed .chev{transform:rotate(-90deg);}
 
-  .params-panel{display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-gutter:stable;padding:2px 3px 2px 0;
-    scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  /* scrollbar TIPIS GLOBAL — ganti bawaan browser di SEMUA elemen (bukan cuma panel) */
+  *{scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  *::-webkit-scrollbar{width:6px;height:6px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+  *::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
+  *::-webkit-scrollbar-thumb:hover{background:var(--blue-soft);}
+  .params-panel{display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-gutter:stable;padding:2px 3px 2px 0;}
   .params-panel .card{margin-bottom:0;}
-  .params-panel::-webkit-scrollbar{width:6px;}
-  .params-panel::-webkit-scrollbar-track{background:transparent;}
-  .params-panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
-  .params-panel::-webkit-scrollbar-thumb:hover{background:var(--blue-soft);}
   @media(max-width:920px){.params-panel{height:auto!important;overflow:visible;scrollbar-gutter:auto;}}
   .params-panel.all-collapsed{justify-content:center;}
 
@@ -110,11 +111,14 @@
   .readout .rline span:last-child{text-align:right;}
   .formula-box{margin-top:6px;overflow-x:auto;padding:4px 0;min-height:24px;}
 
-  /* tooltip elemen plot (hanya utk yg DIGAMBAR; ikut kursor) */
+  /* tooltip elemen plot (hanya utk yg DIGAMBAR; ikut kursor). Default display:none —
+     jangan pakai attr hidden: CSS display di bawah ini menimpanya (bug lama: tooltip
+     tak kunjung hilang saat kursor lepas). Tampil via class .show. */
   .plane-card .tip{position:absolute;z-index:8;max-width:240px;pointer-events:none;background:var(--surface);
     border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(22,35,58,.14);
     padding:6px 9px;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.6;color:var(--ink);
-    display:flex;flex-direction:column;gap:1px;}
+    display:none;flex-direction:column;gap:1px;}
+  .plane-card .tip.show{display:flex;}
   .plane-card .tip .t-t{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);}
   .plane-card .tip .t-t.t-bad{color:var(--red);font-weight:600;}
   .plane-card .tip .t-t.t-ok{color:var(--green);font-weight:600;}
@@ -311,7 +315,8 @@
                 <span class="unit">%</span>
               </div>
             </div>
-            <div class="hint" style="margin-top:0;">CT jenuh/salah rasio → arus sekunder yang DILIHAT relay mengecil ((1−e/100)×); mismatch rasio = beda penyetelan dua CT (±, faktor pada I₂). Keduanya menggeser titik dari I₁/I₂ (kalkulator/skenario) — keputusan diambil pada titik terukur.</div>
+            <div class="zline" id="errOut">I₁ 1.20 → 1.20 pu · I₂ 0.60 → 0.60 pu</div>
+            <div class="hint" style="margin-top:0;">Error hanya berlaku utk titik dari I₁/I₂ (kalkulator/skenario) — keputusan di titik terukur.</div>
             <button class="mini-btn" id="errReset" style="width:100%;">Nolkan semua error</button>
           </div></div>
         </div>
@@ -333,7 +338,7 @@
               <button data-v="satct">Saturasi CT</button>
               <button data-v="inrush">Inrush</button>
             </div>
-            <div class="hint" id="scenHint">Skenario mengisi I₁ &amp; I₂ — titik bisa ditambahkan ke plot.</div>
+            <div class="hint" id="scenHint">Skenario mengisi I₁ &amp; I₂.</div>
           </div></div>
         </div>
 
@@ -347,7 +352,7 @@
       <div class="plane-row">
         <div class="plane-card">
           <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;"></svg>
-          <div class="tip" id="planeTip" hidden></div>
+          <div class="tip" id="planeTip"></div>
           <div class="legend" id="legend"></div>
         </div>
 
@@ -425,11 +430,11 @@ const PRESETS={
 /* Skenario arus (pu) — I1/I2 = arus SEJATI di primer CT; `err` ikut mengisi kartu
    Faktor kesalahan (ct1/ct2 dalam %, mm dalam %). autoAdd → titik demo otomatis. */
 const SCENARIOS={
-  normal:  {i1:1.00,i2:1.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Beban normal: arus dua sisi hampir sama → Iop kecil, titik jauh di bawah kurva (RESTRAIN).'},
-  external:{i1:5.00,i2:4.75,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan eksternal (through-fault): arus besar tetapi nyaris sama → Irt besar, Iop kecil → RESTRAIN. Inilah gunanya restraint. Coba naikkan Error CT sisi 2 di kartu Faktor kesalahan untuk melihat trip palsu.'},
-  internal:{i1:5.00,i2:0.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan internal: arus hanya dari satu sisi → Iop = I₁ besar → TRIP kuat. (Error CT sisi 1 yang besar bisa mengecilkan Iop yang DILIHAT relay → trip terlewat.)'},
-  satct:   {i1:5.00,i2:5.00,err:{ct1:0,ct2:45,mm:0},autoAdd:false,desc:'Through-fault SEJATI 5/5 pu, tetapi CT sisi 2 jenuh 45% (kartu Faktor kesalahan ikut terisi) → relay melihat I₂ = 2.75 pu → Iop palsu 2.25 pu di atas ambang → <b>TRIP PALSU</b>. Inilah alasan slope 2.'},
-  inrush:  {i1:5.00,i2:0.05,err:{ct1:0,ct2:0,mm:0},autoAdd:true,desc:'<b>Inrush magnetisasi</b> (trafo dinyalakan): arus besar hanya dari sisi 1 → kurva magnitudo bilang TRIP (titik demo ditambahkan). Relay NYATA memblokir via <b>restraint harmonik ke-2</b> — tidak dimodelkan di sini. Pembanding: kurva saja belum bisa membedakan inrush dari gangguan internal.'}
+  normal:  {i1:1.00,i2:1.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Beban normal 1/1 pu → RESTRAIN.'},
+  external:{i1:5.00,i2:4.75,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Through-fault 5/4.75 pu → RESTRAIN. Naikkan Error CT sisi 2 untuk melihat trip palsu.'},
+  internal:{i1:5.00,i2:0.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan internal 5/0 pu → TRIP kuat.'},
+  satct:   {i1:5.00,i2:5.00,err:{ct1:0,ct2:45,mm:0},autoAdd:false,desc:'Through-fault sejati 5/5 pu + Error CT sisi 2 45% → <b>TRIP PALSU</b>.'},
+  inrush:  {i1:5.00,i2:0.05,err:{ct1:0,ct2:0,mm:0},autoAdd:true,desc:'Inrush 5/0.05 pu → TRIP (relay nyata memblokir via harmonik ke-2).'}
 };
 
 const S={
@@ -556,7 +561,7 @@ const els={
   slopesContainer:$('slopesContainer'), warnings:$('warnings'),  tbody:$('ptsBody'),
   readout:$('readout'),
   statusBox:$('statusBox'), verdictLabel:$('verdictLabel'), marginLabel:$('marginLabel'),
-  calcOut:$('calcOut'), formulaOut:$('formulaOut')
+  calcOut:$('calcOut'), formulaOut:$('formulaOut'), errOut:$('errOut')
 };
 
 /* =========================================================
@@ -657,8 +662,8 @@ bindPair('pickup','pickupNum','pickup',0.05,0.5,2,' pu');
 
 function setMethod(m){
   P.method=m;
-  $('methodHint').textContent = m==='average' ? 'Irt = (|I₁|+|I₂|)/2 — rata-rata'
-                                               : 'Irt = max(|I₁|,|I₂|) — konservatif';
+  $('methodHint').textContent = m==='average' ? 'Irt = (|I₁|+|I₂|)/2'
+                                               : 'Irt = max(|I₁|,|I₂|)';
   render();                       // koordinat titik 'calc' ikut (diturunkan evaluatePoint)
 }
 document.querySelectorAll('#methodGroup button').forEach(b=>b.addEventListener('click',()=>{
@@ -764,6 +769,9 @@ function updateCalcPreview(){
     const shifted=Math.abs(iop-iopT)>1e-9||Math.abs(irt-irtT)>1e-9;
     out=`Iop = <b>${fmt(iop)}</b> pu · Irt = <b>${fmt(irt)}</b> pu`
       +(shifted?` <span style="color:var(--copper);">(terukur · sejati Iop ${fmt(iopT)} / Irt ${fmt(irtT)})</span>`:'');
+    els.errOut.textContent=`I₁ ${fmt(a1)} → ${fmt(i1m)} pu · I₂ ${fmt(a2)} → ${fmt(i2m)} pu`;
+  } else {
+    els.errOut.textContent='I₁ — · I₂ —';
   }
   els.calcOut.innerHTML=out;
 }
@@ -1000,14 +1008,10 @@ function renderPlane(){
     <text x="13" y="${padT+plotH/2}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)" transform="rotate(-90 13 ${padT+plotH/2})">Iop — arus operasi (pu)</text>
     ${errStr}${ptsStr}`;
 
-  /* legenda */
+  /* legenda — SESUAI permintaan: cukup 3 item (info lain sudah berlabel di kurva) */
   $('legend').innerHTML=`
-    <span><i style="background:var(--ink);"></i>kurva ambang</span>
-    <span><i style="background:var(--copper);"></i>pickup</span>
-    <span><i style="background:var(--red-soft);"></i>daerah TRIP</span>
-    <span><i style="background:var(--green-soft);"></i>daerah RESTRAIN</span>
-    <span><i style="background:var(--green);border-radius:50%;"></i>titik RESTRAIN</span>
     <span><i style="background:var(--red);border-radius:50%;"></i>titik TRIP</span>
+    <span><i style="background:var(--green);border-radius:50%;"></i>titik RESTRAIN</span>
     <span><i style="background:var(--surface);border:1px solid var(--ink-soft);border-radius:50%;"></i>titik sejati (tanpa error)</span>`;
 }
 
@@ -1224,9 +1228,9 @@ plane.addEventListener('pointermove',e=>{
   const tip=$('planeTip'); if(!tip) return;
   const pos=planeHoverPos(e);
   const h=pos?hoverInfo(plane._map,pos.irt,pos.iop):null;
-  if(!h){ tip.hidden=true; return; }
+  if(!h){ tip.classList.remove('show'); return; }
   renderTip(tip,h);
-  tip.hidden=false;
+  tip.classList.add('show');
   const rect=plane.getBoundingClientRect();
   let lx=e.clientX-rect.left+16, ly=e.clientY-rect.top+14;
   const tw=tip.offsetWidth||200, th=tip.offsetHeight||60;
@@ -1234,7 +1238,7 @@ plane.addEventListener('pointermove',e=>{
   if(ly+th>rect.height-6) ly=Math.max(4,rect.height-th-8);
   tip.style.left=lx+'px'; tip.style.top=ly+'px';
 });
-plane.addEventListener('pointerleave',()=>{ const tip=$('planeTip'); if(tip) tip.hidden=true; });
+plane.addEventListener('pointerleave',()=>{ const tip=$('planeTip'); if(tip) tip.classList.remove('show'); });
 
 /* ---------- peringatan non-blocking (PRD §5.6) ----------
    Hanya kombinasi "tidak umum tapi legal" yang tersisa — keadaan ilegal tidak

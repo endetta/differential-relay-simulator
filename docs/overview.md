@@ -103,7 +103,11 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
    putus-putus, marker BP, titik uji, titik+jejak animasi), `renderTable`, `renderSide`
    (status box + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan` + formula
    KaTeX; **tanpa** `.r-sum` & tanpa `#eduNote`), `renderWarnings`. Tooltip elemen
-   dirender ke `#planeTip` (di dalam `.plane-card`, ikut kursor) via `hoverInfo`.
+   dirender ke `#planeTip` (di dalam `.plane-card`, ikut kursor) via `hoverInfo` —
+   tampil via class `.show`, default `display:none` (jangan pakai attr `hidden`:
+   kalah oleh CSS `display`, tooltip jadi tidak pernah hilang). Legenda 3 item saja.
+   `updateCalcPreview` juga mengisi `#errOut` (kartu error): `I₁ … → … pu · I₂ … → … pu`
+   sebagai bukti visual bahwa error CT benar-benar diterapkan pada arus.
 6. **Interaksi plot**: klik area → tambah titik manual; seret lingkaran → pindah;
    `pointerToPu` memakai `plane._map` + skala `clientWidth/viewBox`.
 7. **`render()`** master — satu-satunya entry point: hitung ulang status semua titik thd
@@ -130,7 +134,14 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
   ghost `circle[data-true-point]` ber-`pointer-events:none` — kalau dihapus, klik
   "tambah titik" tidak akan kena kecuali tepat di kotak latar `[data-plot-bg]`.
 - **Kartu kanan = nilai langsung**: jangan kembalikan `.r-sum` / `#eduNote` /
-  `renderEdu` (dihapus sesi ini). Penjelasan skenario → `#scenHint` (panel kiri).
+  `renderEdu` (dihapus sesi ini). Penjelasan skenario → `#scenHint` (panel kiri),
+  dibuat 1 kalimat singkat. Hint metode/formula tanpa kalimat penjelas.
+- **Scrollbar tipis global** lewat `*{scrollbar-width:thin…}` + `*::-webkit-*` 6px —
+  jangan mengembalikan scrollbar bawaan browser.
+- **Error CT hanya memengaruhi titik ber-I1/I2** (kalkulator/skenario/probe); titik
+  klik di plot sudah di bidang terukur — itulah kenapa tanpa titik dari kalkulator
+  slider error tampak "tidak mengubah apa-apa". Bukti visual: `#errOut` + ghost titik
+  sejati + preview `(terukur …)`.
 - Elemen yang bisa diklik plot: lingkaran titik (`[data-point]`) dan latar
   (`[data-plot-bg]`).
 - Warna/teks semua lewat variabel `:root` / class; label SVG memakai halo
@@ -145,7 +156,8 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ```bash
 node tools/model.test.js       # 42 asersi literals model (PRD §5 + measuredPair/error)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 46 asersi seam desain + perilaku UI (termasuk hoverInfo)
+node tools/ui.test.js          # 53 asersi seam desain + perilaku UI (hoverInfo, legend 3 item,
+                               #    errOut, tooltip class .show, scrollbar global)
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari
