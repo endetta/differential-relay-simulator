@@ -92,7 +92,6 @@
   /* elemen dekoratif SVG tidak menangkap pointer — klik/seret jatuh ke kotak latar
      (#plane rect[data-plot-bg]) atau lingkaran titik uji saja. */
   #plane line,#plane polygon,#plane polyline,#plane text{pointer-events:none;}
-  .hint-chip{position:absolute;top:10px;left:16px;z-index:5;pointer-events:none;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-soft);background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:9px;padding:3px 9px;}
   .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:'JetBrains Mono',monospace;}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none;}
@@ -119,7 +118,8 @@
   .badge.TRIP{background:var(--red-soft);color:var(--red);}
   .badge.RESTRAIN{background:var(--green-soft);color:var(--green);}
 
-  .points-card{display:flex;flex-direction:column;min-height:0;padding:12px 16px 14px;}
+  .points-card{display:flex;flex-direction:column;min-height:0;padding:12px 16px 14px;height:216px;}  /* tinggi TERKUNCI: kurva di atas tak boleh melompat saat titik ditambah/hapus */
+  @media (max-height:740px){ .points-card{height:170px;} }  /* layar pendek: sisakan ruang utk plot */
   .points-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
   .points-head .pt{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;}
   .points-head .sp{flex:1;}
@@ -134,7 +134,9 @@
   table.ptab td.num,table.ptab th.num{text-align:right;}
   table.ptab .rowdel{border:none;background:none;color:var(--ink-soft);cursor:pointer;font-size:13px;padding:0 4px;border-radius:4px;}
   table.ptab .rowdel:hover{color:var(--red);background:var(--red-soft);}
-  .table-empty{font-size:11.5px;color:var(--ink-soft);padding:6px 2px;font-family:'Inter',sans-serif;}
+  /* skeleton tabel (keadaan kosong) — kerangka tetap terlihat tanpa mengubah tinggi kartu */
+  tr.skel td{border-bottom:1px solid var(--line);}
+  .sk-bar{display:inline-block;height:9px;border-radius:5px;background:var(--line);vertical-align:middle;}
 
   .warn{font-size:10.5px;color:var(--copper);background:var(--copper-soft);border-radius:7px;padding:6px 9px;margin-top:8px;line-height:1.5;font-family:'JetBrains Mono',monospace;}
 
@@ -179,7 +181,7 @@
     .plane-row{flex:1;min-height:0;}
     .plane-card,.side-card{min-height:0;}
     .side-card{overflow:hidden;}
-    .points-card{flex:none;max-height:32vh;}
+    .points-card{flex:none;}
   }
 
   /* ===== splash pembuka: tirai krem → kanan, palet hangat (sama dgn Distance Relay) ===== */
@@ -306,7 +308,6 @@
 
       <div class="plane-row">
         <div class="plane-card">
-          <div class="hint-chip" id="planeHint">klik plot → titik uji · seret → pindah</div>
           <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;"></svg>
           <div class="legend" id="legend"></div>
         </div>
@@ -333,7 +334,6 @@
             <thead><tr><th>No</th><th>Sumber</th><th class="num">Irt (pu)</th><th class="num">Iop (pu)</th><th>Status</th><th class="num">Margin</th><th></th></tr></thead>
             <tbody id="ptsBody"></tbody>
           </table>
-          <div class="table-empty" id="tableEmpty">Belum ada titik uji. Klik plot untuk menempatkan, atau gunakan Kalkulator arus.</div>
         </div>
       </div>
     </div>
@@ -512,8 +512,8 @@ SL.load(DEFAULT_SLOPES);
 const $=id=>document.getElementById(id);
 const plane=$('plane');
 const els={
-  slopesContainer:$('slopesContainer'), warnings:$('warnings'), tbody:$('ptsBody'),
-  tableEmpty:$('tableEmpty'), readout:$('readout'), eduNote:$('eduNote'),
+  slopesContainer:$('slopesContainer'), warnings:$('warnings'),  tbody:$('ptsBody'),
+  readout:$('readout'), eduNote:$('eduNote'),
   statusBox:$('statusBox'), verdictLabel:$('verdictLabel'), marginLabel:$('marginLabel'),
   calcOut:$('calcOut'), formulaOut:$('formulaOut')
 };
@@ -860,8 +860,8 @@ function renderPlane(){
     <text x="${padL+5}" y="${(pickupY-5).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9.5" fill="var(--copper)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">pickup</text>
     <polyline points="${curvePoly}" fill="none" stroke="var(--ink)" stroke-width="2.1" stroke-linejoin="round" clip-path="url(#pc)"/>
     ${bpMarkers}
-    <text x="${(padL+plotW-8)}" y="${Yy(yMax*0.9).toFixed(2)}" text-anchor="end" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--red)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH TRIP</text>
-    <text x="${padL+8}" y="${Yy(yMax*0.06).toFixed(2)}" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--green)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH RESTRAIN</text>
+    <text x="${padL+8}" y="${Yy(yMax*0.9).toFixed(2)}" text-anchor="start" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--red)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH TRIP</text>
+    <text x="${(padL+plotW-8)}" y="${Yy(yMax*0.06).toFixed(2)}" text-anchor="end" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--green)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH RESTRAIN</text>
     <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="var(--ink-soft)" stroke-width="1"/>
     <line x1="${padL}" y1="${padT+plotH}" x2="${padL+plotW}" y2="${padT+plotH}" stroke="var(--ink-soft)" stroke-width="1"/>
     ${tickX}${tickY}
@@ -916,22 +916,37 @@ window.addEventListener('pointermove',e=>{
 });
 window.addEventListener('pointerup',()=>{ dragId=null; });
 
-/* ---------- tabel titik ---------- */
+/* ---------- tabel titik ----------
+   Kosong → SKELETON (baris .skel) supaya kerangka kartu tetap terlihat dan tinggi
+   kartu tidak berubah; pesan kosong disimpan sebagai aria-label tabel saja. */
+const SKEL_N=6;
+const SKEL_ROW=`<tr class="skel" aria-hidden="true">
+      <td><span class="sk-bar" style="width:15px"></span></td>
+      <td><span class="sk-bar" style="width:62px"></span></td>
+      <td class="num"><span class="sk-bar" style="width:34px"></span></td>
+      <td class="num"><span class="sk-bar" style="width:34px"></span></td>
+      <td><span class="sk-bar" style="width:56px"></span></td>
+      <td class="num"><span class="sk-bar" style="width:44px"></span></td>
+      <td></td></tr>`;
 function renderTable(){
   const m=P;
-  els.tbody.innerHTML=P.points.map((pt,i)=>{
-    const sel=pt.id===P.selectedId?' sel':'';
-    const src=pt.source==='manual'?'Manual':'Dari arus';
-    const d=evaluatePoint(m,pt);
-    return `<tr class="${sel?sel.trim():''}" data-row="${pt.id}">
-      <td>${i+1}</td><td>${src}</td>
-      <td class="num">${fmt(d.irt)}</td><td class="num">${fmt(d.iop)}</td>
-      <td><span class="badge ${d.status}">${d.status}</span></td>
-      <td class="num">${fmtSign(d.margin)}</td>
-      <td><button class="rowdel" data-del="${pt.id}" aria-label="Hapus titik ${i+1}">✕</button></td>
-    </tr>`;
-  }).join('');
-  els.tableEmpty.style.display=P.points.length?'none':'block';
+  const has=P.points.length>0;
+  els.tbody.innerHTML=has
+    ? P.points.map((pt,i)=>{
+      const sel=pt.id===P.selectedId?' sel':'';
+      const src=pt.source==='manual'?'Manual':'Dari arus';
+      const d=evaluatePoint(m,pt);
+      return `<tr class="${sel?sel.trim():''}" data-row="${pt.id}">
+        <td>${i+1}</td><td>${src}</td>
+        <td class="num">${fmt(d.irt)}</td><td class="num">${fmt(d.iop)}</td>
+        <td><span class="badge ${d.status}">${d.status}</span></td>
+        <td class="num">${fmtSign(d.margin)}</td>
+        <td><button class="rowdel" data-del="${pt.id}" aria-label="Hapus titik ${i+1}">✕</button></td>
+      </tr>`;
+    }).join('')
+    : SKEL_ROW.repeat(SKEL_N);
+  const tbl=els.tbody.parentElement;
+  if(tbl&&tbl.tagName==='TABLE') tbl.setAttribute('aria-label', has?'':'Belum ada titik uji — klik plot untuk menempatkan, atau gunakan Kalkulator arus.');
 }
 els.tbody.addEventListener('click',e=>{
   const del=e.target.closest('[data-del]');

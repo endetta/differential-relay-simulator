@@ -185,5 +185,48 @@ check('preset cepat & skenario hadir', () => {
   contains(src, 'SCENARIOS', 'js');
 });
 
+/* ===== revisi: tinggi kartu titik terkunci + skeleton kosong ===== */
+check('kartu titik: tinggi TERKUNCI (px tetap) + scroll internal table-wrap', () => {
+  const m = src.match(/\.points-card\{[^}]*height:\s*\d+px[^}]*\}/);
+  if (!m) throw new Error('rule .points-card dgn height px tetap tidak ditemukan');
+  contains(src, '.table-wrap{overflow:auto', 'table-wrap scroll internal');
+  contains(src, '.skel', 'css skeleton');
+  contains(src, '.sk-bar', 'css skeleton bar');
+});
+check('tabel kosong → skeleton (.skel), tanpa data-row', () => {
+  clearPoints();
+  render();
+  contains(E.ptsBody.innerHTML, 'class="skel"', 'baris skeleton');
+  if (E.ptsBody.innerHTML.includes('data-row')) throw new Error('tidak boleh ada baris titik saat kosong');
+});
+check('setelah titik ditambah → skeleton diganti baris asli', () => {
+  addPoint('manual', 1.0, 2.0, null, null);
+  render();
+  contains(E.ptsBody.innerHTML, 'data-row', 'baris asli muncul');
+  if (E.ptsBody.innerHTML.includes('class="skel"')) throw new Error('skeleton harus hilang saat ada titik');
+  contains(E.ptsBody.innerHTML, '>TRIP</span>', 'badge tetap benar');
+});
+
+/* ===== revisi: hint chip dihapus ===== */
+check('hint chip dihapus: #planeHint / .hint-chip / teks seret-pindah tak ada', () => {
+  if (src.includes('planeHint')) throw new Error('planeHint masih ada');
+  if (src.includes('hint-chip')) throw new Error('hint-chip masih ada');
+  if (src.includes('seret → pindah')) throw new Error('teks hint masih ada');
+});
+
+/* ===== revisi: label daerah dipindah (TRIP kiri-atas, RESTRAIN kanan-bawah) ===== */
+check('DAERAH TRIP label kiri-atas (x=60 anchor start), RESTRAIN kanan-bawah (x=618 anchor end)', () => {
+  render();
+  const sv = svg();
+  const trip = sv.match(/<text x="([\d.]+)" y="([\d.]+)" text-anchor="start"[^>]*>DAERAH TRIP<\/text>/);
+  if (!trip) throw new Error('TRIP label ber-anchor start tidak ditemukan');
+  if (trip[1] !== '60') throw new Error('TRIP harus di x=60 (kiri), dapat ' + trip[1]);
+  if (parseFloat(trip[2]) > 200) throw new Error('TRIP harus di atas (y=' + trip[2] + ')');
+  const rest = sv.match(/<text x="([\d.]+)" y="([\d.]+)" text-anchor="end"[^>]*>DAERAH RESTRAIN<\/text>/);
+  if (!rest) throw new Error('RESTRAIN label ber-anchor end tidak ditemukan');
+  if (rest[1] !== '618') throw new Error('RESTRAIN harus di x=618 (kanan), dapat ' + rest[1]);
+  if (parseFloat(rest[2]) < 300) throw new Error('RESTRAIN harus di bawah (y=' + rest[2] + ')');
+});
+
 console.log(`\n${passed} lulus, ${failed} gagal`);
 process.exit(failed ? 1 : 0);
