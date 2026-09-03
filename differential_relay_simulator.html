@@ -398,10 +398,10 @@ const S={
     method:'average',               // 'average' | 'maximum'
     slopes:[],                      // diisi SL.load(DEFAULT_SLOPES) di bawah (modul slopeList)
     i1:1.20,i2:0.60,
-    points:[],                      // {id,source:'manual'|'calc',irt,iop,i1,i2}
+    points:[],                      // input saja: {id,source,irt,iop} manual | {id,source,i1,i2} calc
     selectedId:null,
-    probe:null,                     // titik animasi sementara {irt,iop}
-    probeTrace:null                 // jejak animasi {irt,iop}[] (pu)
+    probe:null,                     // titik animasi sementara {i1,i2} — koordinat/status via evaluatePoint
+    probeTrace:null                 // jejak animasi [irt,iop][] (pu) — sejarah, bukan turunan
   },
   ui:{collapsed:{curve:false,calc:false}}
 };
@@ -543,6 +543,16 @@ function thresholdAt(m,irt){
 function statusOf(m,iop,irt){ return iop>thresholdAt(m,irt)+1e-12 ? 'TRIP' : 'RESTRAIN'; }
 function marginOf(m,iop,irt){ const t=thresholdAt(m,irt);
   return t<=1e-12 ? 0 : ((iop-t)/t)*100; }
+/* Evaluasi satu titik thd kurva — DERIVED, TIDAK pernah disimpan di objek titik.
+   Titik 'calc' & probe membawa i1/i2 (koordinat diturunkan dari metode restraint
+   saat ini); titik manual membawa irt/iop hasil klik/seret. thr/status/margin
+   selalu dihitung dari (irt,iop) thd kurva SAAT INI → tidak mungkin basi. */
+function evaluatePoint(m,pt){
+  const irt=(pt.i1!=null&&pt.i2!=null)?irtOf(pt.i1,pt.i2,m.method):pt.irt;
+  const iop=(pt.i1!=null&&pt.i2!=null)?iopOf(pt.i1,pt.i2):pt.iop;
+  const thr=thresholdAt(m,irt);
+  return {irt,iop,thr,status:statusOf(m,iop,irt),margin:marginOf(m,iop,irt)};
+}
 /* rentang sumbu (pu) dari kurva */
 function computeDomain(m){
   const bps=m.slopes.filter(s=>s.breakpoint!=null).map(s=>s.breakpoint);
@@ -586,7 +596,7 @@ function setMethod(m){
   P.method=m;
   $('methodHint').textContent = m==='average' ? 'Irt = (|I₁|+|I₂|)/2 — rata-rata'
                                                : 'Irt = max(|I₁|,|I₂|) — konservatif';
-  recalcCalcPoints(); render();
+  render();                       // koordinat titik 'calc' ikut (diturunkan evaluatePoint)
 }
 document.querySelectorAll('#methodGroup button').forEach(b=>b.addEventListener('click',()=>{
   document.querySelectorAll('#methodGroup button').forEach(x=>x.classList.remove('active'));
@@ -612,7 +622,7 @@ $('slopesContainer').addEventListener('input',e=>{
   if(role==='percent') SL.setPercent(sid,v);
   else SL.setBreakpoint(sid,v);
   mirrorSlopeInputs(sid,role);       // nilai otoritatif (sudah di-clamp modul)
-  recalcCalcPoints(); render();
+  render();
 });
 $('slopesContainer').addEventListener('click',e=>{
   const b=e.target.closest('[data-del-slope]');
@@ -644,10 +654,10 @@ function renderSlopes(){
 }
 function addSlope(){ if(P.slopes.length>=MAX_SLOPES) return;
   SL.add(50); edu={topic:'general'};
-  renderSlopes(); recalcCalcPoints(); render();
+  renderSlopes(); render();
 }
 function removeSlope(id){ SL.remove(id); edu={topic:'general'};
-  renderSlopes(); recalcCalcPoints(); render();
+  renderSlopes(); render();
 }
 $('addSlope').addEventListener('click',addSlope);
 
@@ -658,20 +668,16 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
   SL.load(pr.slopes);
   $('pickup').value=P.pickup; $('pickupNum').value=P.pickup; $('pickupv').textContent=fmt(P.pickup,2)+' pu';
   edu={topic:'preset'};
-  renderSlopes(); recalcCalcPoints(); render();
+  renderSlopes(); render();
 }));
 
-/* ---------- titik uji ---------- */
-function recalcCalcPoints(){
-  P.points.forEach(pt=>{
-    if(pt.source==='calc'){ pt.iop=iopOf(pt.i1,pt.i2); pt.irt=irtOf(pt.i1,pt.i2,P.method); }
-  });
-}
-function ptStatus(m,pt){ pt.thr=thresholdAt(m,pt.irt); pt.status=statusOf(m,pt.iop,pt.irt); pt.margin=marginOf(m,pt.iop,pt.irt); }
+/* ---------- titik uji ----------
+   Titik menyimpan INPUT saja: manual → {irt,iop} hasil klik/seret;
+   'calc' → {i1,i2} (koordinat Irt/Iop diturunkan dari metode restraint saat
+   render via evaluatePoint). thr/status/margin TIDAK pernah disimpan. */
 function addPoint(source,irt,iop,i1,i2){
-  const m=P;
-  const pt={id:uid++,source,irt,iop,i1,i2,thr:0,status:'',margin:0};
-  ptStatus(m,pt);
+  const pt={id:uid++,source,irt,iop,i1:null,i2:null};
+  if(source==='calc'){ pt.i1=i1; pt.i2=i2; }
   P.points.push(pt);
   P.selectedId=pt.id;
   selectPoint(pt.id);
@@ -722,7 +728,7 @@ $('animateBtn').addEventListener('click',()=>{
     const ease=t*t*(3-2*t);                 // smoothstep 0..1
     const I2=I1*(1-ease);                   // I2: dari I1 (eksternal/matching) → 0 (internal)
     const iop=iopOf(I1,I2), irt=irtOf(I1,I2,P.method);
-    P.probe={irt,iop,i1:I1,i2:I2};
+    P.probe={i1:I1,i2:I2};          // koordinat & status diturunkan evaluatePoint
     if(!P.probeTrace.length||iop>P.probeTrace[P.probeTrace.length-1][1]+1e-9){
       P.probeTrace.push([irt,iop]);         // jejak hanya saat Iop naik (menuju trip)
     }
@@ -822,19 +828,22 @@ function renderPlane(){
   const pickupY=Yy(m.pickup);
   const pickupDash=`<line x1="${Xx(0)}" y1="${pickupY}" x2="${Xx(xMax)}" y2="${pickupY}" stroke="var(--copper)" stroke-width="1.4" stroke-dasharray="5 4"/>`;
 
-  /* titik uji (warna status) + titik animasi + jejak */
+  /* titik uji (warna status) + titik animasi + jejak — semua DERIVED via evaluatePoint */
   const ptSvg=pt=>{
     const sel=pt.id===P.selectedId;
-    const col=pt.status==='TRIP'?'var(--red)':'var(--green)';
-    return `<circle cx="${Xx(pt.irt).toFixed(2)}" cy="${Yy(pt.iop).toFixed(2)}" r="${sel?7:5.5}" fill="${col}"
+    const d=evaluatePoint(m,pt);
+    const col=d.status==='TRIP'?'var(--red)':'var(--green)';
+    return `<circle cx="${Xx(d.irt).toFixed(2)}" cy="${Yy(d.iop).toFixed(2)}" r="${sel?7:5.5}" fill="${col}"
       stroke="${sel?'var(--ink)':'var(--surface)'}" stroke-width="${sel?2.5:1.6}" data-point="${pt.id}"/>`;
   };
   let ptsStr=P.points.map(ptSvg).join('');
   if(P.probe){
-    const col=P.probe.i2<=1e-9?'var(--red)':'var(--copper)';
-    ptsStr+=`<circle cx="${Xx(P.probe.irt).toFixed(2)}" cy="${Yy(P.probe.iop).toFixed(2)}" r="6" fill="none" stroke="${col}" stroke-width="2">
+    const d=evaluatePoint(m,P.probe);
+    /* cincin berdenyut ikut status DERIVED: membara (copper) → merah saat melewati kurva */
+    const col=d.status==='TRIP'?'var(--red)':'var(--copper)';
+    ptsStr+=`<circle cx="${Xx(d.irt).toFixed(2)}" cy="${Yy(d.iop).toFixed(2)}" r="6" fill="none" stroke="${col}" stroke-width="2">
       <animate attributeName="r" values="5;9;5" dur="0.8s" repeatCount="indefinite"/></circle>`;
-    ptsStr+=`<circle cx="${Xx(P.probe.irt).toFixed(2)}" cy="${Yy(P.probe.iop).toFixed(2)}" r="3.4" fill="${col}"/>`;
+    ptsStr+=`<circle cx="${Xx(d.irt).toFixed(2)}" cy="${Yy(d.iop).toFixed(2)}" r="3.4" fill="${col}"/>`;
   }
   if(P.probeTrace&&P.probeTrace.length>1){
     const tr=P.probeTrace.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
@@ -886,7 +895,14 @@ const round2=v=>Math.round(v*100)/100;
 let dragId=null;
 plane.addEventListener('pointerdown',e=>{
   const c=e.target.closest?e.target.closest('[data-point]'):null;
-  if(c){ selectPoint(Number(c.dataset.point)); dragId=P.selectedId; e.preventDefault(); return; }
+  if(c){
+    const pt=P.points.find(p=>p.id===Number(c.dataset.point));
+    selectPoint(pt?pt.id:null);
+    /* hanya titik MANUAL yang bisa diseret — titik 'Dari arus' terpaku pd I1/I2
+       (koordinatnya diturunkan, mutasi manual akan diabaikan evaluatePoint) */
+    if(pt&&pt.source==='manual') dragId=pt.id;
+    e.preventDefault(); return;
+  }
   if(e.target.hasAttribute&&e.target.hasAttribute('data-plot-bg')){
     const pos=pointerToPu(e);
     if(pos){ addPoint('manual',round2(pos.irt),round2(pos.iop),null,null); }
@@ -906,11 +922,12 @@ function renderTable(){
   els.tbody.innerHTML=P.points.map((pt,i)=>{
     const sel=pt.id===P.selectedId?' sel':'';
     const src=pt.source==='manual'?'Manual':'Dari arus';
+    const d=evaluatePoint(m,pt);
     return `<tr class="${sel?sel.trim():''}" data-row="${pt.id}">
       <td>${i+1}</td><td>${src}</td>
-      <td class="num">${fmt(pt.irt)}</td><td class="num">${fmt(pt.iop)}</td>
-      <td><span class="badge ${pt.status}">${pt.status}</span></td>
-      <td class="num">${fmtSign(pt.margin)}</td>
+      <td class="num">${fmt(d.irt)}</td><td class="num">${fmt(d.iop)}</td>
+      <td><span class="badge ${d.status}">${d.status}</span></td>
+      <td class="num">${fmtSign(d.margin)}</td>
       <td><button class="rowdel" data-del="${pt.id}" aria-label="Hapus titik ${i+1}">✕</button></td>
     </tr>`;
   }).join('');
@@ -931,12 +948,12 @@ function renderSide(){
   const m=P;
   const selPt=P.points.find(p=>p.id===P.selectedId)||P.probe;
   const stBox=els.statusBox, vl=els.verdictLabel, ml=els.marginLabel;
-  if(selPt){
-    ptStatus(m,selPt);
-    vl.textContent=selPt.status;
-    vl.style.color=STATUS_C[selPt.status];
-    stBox.style.background=STATUS_S[selPt.status];
-    ml.textContent=`margin ${fmtSign(selPt.margin)} · ${selPt.status==='TRIP'?'di atas kurva':'di bawah kurva'}`;
+  const d=selPt?evaluatePoint(m,selPt):null;   // DERIVED — tidak disimpan di titik
+  if(d){
+    vl.textContent=d.status;
+    vl.style.color=STATUS_C[d.status];
+    stBox.style.background=STATUS_S[d.status];
+    ml.textContent=`margin ${fmtSign(d.margin)} · ${d.status==='TRIP'?'di atas kurva':'di bawah kurva'}`;
   } else if(P.points.length){
     vl.textContent='—'; ml.textContent='pilih titik dari tabel atau plot';
     stBox.style.background='var(--bg)'; vl.style.color='var(--ink-soft)';
@@ -946,24 +963,24 @@ function renderSide(){
   }
   /* ringkasan + grup readout */
   let summary,rowsTitik,rowsKep;
-  if(selPt){
-    const t=thresholdAt(m,selPt.irt);
+  if(d){
+    const t=d.thr;
     const srcTxt=selPt.source==='calc'
       ? (selPt.i1!=null?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
       : (selPt.i1!=null?'Animasi sapuan':'Klik pada plot');
-    const ok=selPt.status==='TRIP';
+    const ok=d.status==='TRIP';
     summary=ok
-      ? `Titik di <b>Irt ${fmt(selPt.irt)} pu</b> dengan <b>Iop ${fmt(selPt.iop)} pu</b> berada di <b>atas</b> ambang ${fmt(t)} pu → <b>TRIP</b> (margin ${fmtSign(selPt.margin)}).`
-      : `Titik di <b>Irt ${fmt(selPt.irt)} pu</b> dengan <b>Iop ${fmt(selPt.iop)} pu</b> masih di <b>bawah</b> ambang ${fmt(t)} pu → <b>RESTRAIN</b> (margin ${fmtSign(selPt.margin)}).`;
+      ? `Titik di <b>Irt ${fmt(d.irt)} pu</b> dengan <b>Iop ${fmt(d.iop)} pu</b> berada di <b>atas</b> ambang ${fmt(t)} pu → <b>TRIP</b> (margin ${fmtSign(d.margin)}).`
+      : `Titik di <b>Irt ${fmt(d.irt)} pu</b> dengan <b>Iop ${fmt(d.iop)} pu</b> masih di <b>bawah</b> ambang ${fmt(t)} pu → <b>RESTRAIN</b> (margin ${fmtSign(d.margin)}).`;
     rowsTitik=`
       <div class="rline"><span>Sumber titik</span><span>${srcTxt}</span></div>
-      <div class="rline key"><span>Irt (restraint)</span><span>${fmt(selPt.irt)} pu</span></div>
-      <div class="rline key"><span>Iop (operasi)</span><span>${fmt(selPt.iop)} pu</span></div>
+      <div class="rline key"><span>Irt (restraint)</span><span>${fmt(d.irt)} pu</span></div>
+      <div class="rline key"><span>Iop (operasi)</span><span>${fmt(d.iop)} pu</span></div>
       <div class="rline"><span>Ambang kurva</span><span>${fmt(t)} pu</span></div>`;
     rowsKep=`
-      <div class="rline"><span>Keputusan</span><span>${selPt.status}</span></div>
-      <div class="rline"><span>Margin</span><span>${fmtSign(selPt.margin)}</span></div>
-      <div class="rline"><span>Selisih Iop − ambang</span><span>${ok?'+':'−'}${fmt(Math.abs(selPt.iop-t))} pu</span></div>`;
+      <div class="rline"><span>Keputusan</span><span>${d.status}</span></div>
+      <div class="rline"><span>Margin</span><span>${fmtSign(d.margin)}</span></div>
+      <div class="rline"><span>Selisih Iop − ambang</span><span>${ok?'+':'−'}${fmt(Math.abs(d.iop-t))} pu</span></div>`;
   } else {
     summary='Belum ada titik uji. <b>Klik plot</b> untuk menempatkan titik manual, isi <b>I₁/I₂</b> di Kalkulator arus, atau pilih <b>Skenario</b> — setiap titik langsung dinilai TRIP/RESTRAIN.';
     rowsTitik='';
@@ -975,10 +992,10 @@ function renderSide(){
     ${rowsKep?`<div class="rgroup"><div class="rgroup-title">Keputusan</div>${rowsKep}</div>`:''}`;
 
   /* formula KaTeX */
-  const eq=selPt
+  const eq=d
     ? (selPt.source==='calc'
-        ? `I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(selPt.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(selPt.irt)}\\,\\text{pu}`
-        : `I_{op}=${fmt(selPt.iop)}\\,\\text{pu} > ${fmt(thresholdAt(m,selPt.irt))}\\,\\text{pu}=f(I_{rt})`)
+        ? `I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`
+        : `I_{op}=${fmt(d.iop)}\\,\\text{pu} > ${fmt(d.thr)}\\,\\text{pu}=f(I_{rt})`)
     : `I_{op}=|I_1-I_2|,\\qquad I_{rt}=\\begin{cases}(|I_1|+|I_2|)/2,&\\text{Average}\\\\\\max(|I_1|,|I_2|),&\\text{Maximum}\\end{cases}`;
   if(typeof katex==='function') katex.render(eq,els.formulaOut,{displayMode:true,throwOnError:false});
   else els.formulaOut.textContent='Iop = |I1 − I2|  ·  Irt = (|I1|+|I2|)/2  atau  max(|I1|,|I2|)';
@@ -1021,7 +1038,8 @@ plane.addEventListener('pointermove',e=>{
   const c=e.target.closest?e.target.closest('[data-point]'):null;
   if(!c) return;
   const pt=P.points.find(p=>p.id===Number(c.dataset.point));
-  if(pt) plane.title=`Irt ${fmt(pt.irt)} pu · Iop ${fmt(pt.iop)} pu · ${pt.status} (${fmtSign(pt.margin)})`;
+  if(pt){ const d=evaluatePoint(P,pt);
+    plane.title=`Irt ${fmt(d.irt)} pu · Iop ${fmt(d.iop)} pu · ${d.status} (${fmtSign(d.margin)})`; }
 });
 plane.addEventListener('pointerleave',()=>{ plane.title=''; });
 
@@ -1034,8 +1052,8 @@ function renderWarnings(){
 
 /* ---------- master render ---------- */
 function render(){
-  /* status tiap titik dihitung ulang thd kurva SAAT INI (manual & kalkulator) */
-  P.points.forEach(pt=>{ if(pt.source==='calc'){ pt.iop=iopOf(pt.i1,pt.i2); pt.irt=irtOf(pt.i1,pt.i2,P.method); } ptStatus(P,pt); });
+  /* tak ada status tersimpan: renderPlane/Table/Side menurunkan sendiri via
+     evaluatePoint() thd kurva SAAT INI — status titik tidak mungkin basi. */
   renderPlane();
   renderTable();
   renderSide();

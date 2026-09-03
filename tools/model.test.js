@@ -17,7 +17,7 @@ function approx(act, exp, tol, ctx) {
 }
 
 const ctx = loadSimulator(HTML);
-const { iopOf, irtOf, slopeLine, thresholdAt, statusOf, marginOf, computeDomain, render } = ctx.pub;
+const { iopOf, irtOf, slopeLine, thresholdAt, statusOf, marginOf, evaluatePoint, computeDomain, render } = ctx.pub;
 
 /* Konfigurasi default PRD §5.5: pickup 0.30, s1 25% @ 2.0, s2 65% → ∞ */
 const M = { pickup: 0.30, method: 'average', slopes: [
@@ -63,6 +63,38 @@ check('margin saturasi CT (5,3): (2−1.8)/1.8 = +11.1%', () => {
 });
 check('margin eksternal negatif: (0.25−2.36875)/2.36875 = −89.4%', () => {
   approx(marginOf(M, 0.25, 4.875), -89.4459, 1e-3, 'margin eksternal');
+});
+
+/* §5.2/§5.4 — evaluatePoint: DERIVED, tidak disimpan di objek titik */
+check('evaluatePoint manual {irt:1,iop:2} → TRIP + margin 566.7%', () => {
+  const d = evaluatePoint(M, { irt: 1, iop: 2 });
+  approx(d.irt, 1, 1e-9, 'd.irt'); approx(d.iop, 2, 1e-9, 'd.iop');
+  approx(d.thr, 0.3, 1e-9, 'd.thr (pickup dominan)');
+  if (d.status !== 'TRIP') throw new Error('status harus TRIP');
+  approx(d.margin, 566.6667, 1e-3, 'd.margin');
+});
+check('evaluatePoint calc {5,4.75} Average → irt 4.875, RESTRAIN', () => {
+  const d = evaluatePoint(M, { i1: 5, i2: 4.75 });
+  approx(d.irt, 4.875, 1e-9, 'd.irt'); approx(d.iop, 0.25, 1e-9, 'd.iop');
+  approx(d.thr, 2.36875, 1e-9, 'd.thr');
+  if (d.status !== 'RESTRAIN') throw new Error('harus RESTRAIN');
+});
+check('evaluatePoint calc {5,4.75} Maximum → irt 5 (ikut metode restraint)', () => {
+  const d = evaluatePoint({ pickup: 0.3, method: 'maximum', slopes: M.slopes }, { i1: 5, i2: 4.75 });
+  approx(d.irt, 5, 1e-9, 'd.irt max');
+  if (d.status !== 'RESTRAIN') throw new Error('harus RESTRAIN');
+  approx(d.thr, 2.45, 1e-9, 'd.thr @5');
+});
+check('evaluatePoint internal {5,0} → TRIP', () => {
+  const d = evaluatePoint(M, { i1: 5, i2: 0 });
+  approx(d.irt, 2.5, 1e-9, 'd.irt'); if (d.status !== 'TRIP') throw new Error('harus TRIP');
+});
+check('evaluatePoint mengabaikan field basi di objek titik (stale unrepresentable)', () => {
+  /* field status/margin lama di objek TIDAK dibaca — selalu dihitung dari kurva kini */
+  const stale = { id: 1, source: 'calc', i1: 5, i2: 4.75, status: 'TRIP', margin: 999, thr: 0 };
+  const d = evaluatePoint(M, stale);
+  if (d.status !== 'RESTRAIN') throw new Error('field stale tak boleh dipakai');
+  approx(d.margin, -89.4459, 1e-3, 'margin dihitung ulang');
 });
 
 /* §5.5 + preset multi-slope (3 segmen) */

@@ -78,7 +78,7 @@ check('PRD terhubung: model & fitur dijamin di docs/PRD.md (markup kunci hadir)'
 const ctx = loadSimulator(HTML);
 const E = ctx.els;
 const pub = ctx.pub;
-const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering, SL } = pub;
+const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, evaluatePoint, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering, SL } = pub;
 render();
 const svg = () => E.plane.innerHTML;
 
@@ -131,8 +131,22 @@ check('ganti metode → Average→Maximum mengubah Irt titik kalkulator', () => 
   setMethod('maximum');
   render();
   const pt = P.points.find(p => p.source === 'calc');
-  if (Math.abs(pt.irt - 5) > 1e-9) throw new Error('Irt harus max(|5|,|4.75|)=5, dapat ' + pt.irt);
+  const d = evaluatePoint(P, pt);           // koordinat DERIVED — titik tak menyimpan irt
+  if (Math.abs(d.irt - 5) > 1e-9) throw new Error('Irt harus max(|5|,|4.75|)=5, dapat ' + d.irt);
   contains(E.calcOut.innerHTML, 'Irt = <b>5.00</b> pu', 'preview kalkulator');
+});
+check('regresi basi: kurva berubah → status titik ikut tanpa menyentuh titik (derived)', () => {
+  /* manual (1.0, 0.29): dgn pickup 0.30 → RESTRAIN; pickup 0.20 → ambang turun → TRIP */
+  P.pickup = 0.30;
+  addPoint('manual', 1.0, 0.29, null, null);
+  render();
+  if (E.verdictLabel.textContent !== 'RESTRAIN') throw new Error('harus RESTRAIN dulu (pickup 0.30)');
+  P.pickup = 0.20;
+  render();                                  // tanpa menyentuh titik sama sekali
+  if (E.verdictLabel.textContent !== 'TRIP') throw new Error('harus TRIP setelah pickup 0.20');
+  contains(E.ptsBody.innerHTML, '>TRIP</span>', 'badge tabel ikut berubah');
+  P.pickup = 0.30;
+  render();
 });
 
 /* peringatan non-blocking (PRD §5.6) — keadaan ilegal tak mungkin ada karena

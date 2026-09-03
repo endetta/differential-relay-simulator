@@ -79,8 +79,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
    gotcha di bawah).
-7. **`render()`** master: hitung ulang status **semua** titik thd kurva saat ini →
-   render plane → tabel → sisi → warnings → preview kalkulator.
+7. **`render()`** master: render plane → tabel → sisi → warnings → preview kalkulator.
+   Tak ada status titik yang disimpan — renderer menurunkannya sendiri via
+   `evaluatePoint` thd kurva saat ini.
 8. **Splash IIFE** + **`fitPlane()`** (ResizeObserver + `plane._dims` guard).
 
 ## Gotcha yang sering menggigit
@@ -93,8 +94,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   ulang, tidak memutasi `breakpoint` saat render); handler input cukup memanggil
   perintah modul lalu `render()`. Melewati modul (mutasi `P.slopes` langsung) = di luar
   kontrak — state bisa jadi ilegal.
-- **Status titik basi** — selalu `ptStatus(P, pt)` untuk semua titik di dalam `render()`
-  (manual & kalkulator), karena kurva bisa berubah setelah titik ditambahkan.
+- **Status titik DERIVED, jangan disimpan di objek titik.** `evaluatePoint(m, pt)`
+  menghitung `{irt,iop,thr,status,margin}` thd kurva saat ini; titik manual menyimpan
+  `{irt,iop}` hasil klik/seret, titik `'calc'` menyimpan `{i1,i2}` (koordinat mengikuti
+  metode restraint). Karena tak pernah ditulis, status tidak mungkin basi — jangan
+  memperkenalkan kembali field cache `thr/status/margin` pada titik.
 - **`pointer-events` SVG**: line/polygon/polyline/text diberi `pointer-events:none`
   (CSS `#plane …{pointer-events:none}`) agar klik/seret hanya kena lingkaran titik
   (`[data-point]`) atau kotak latar `[data-plot-bg]`. Jangan hapus.

@@ -67,6 +67,10 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
      dan puncak kurva ×1.2 (minimal 1). Skala bidang **dari kurva**, bukan dari titik.
    - `curveSample(m,xMax)` — titik sampel ambang per segmen (breakpoint dijaga sebagai
      titik sampel agar kurva tidak membulat di sambungan).
+   - `evaluatePoint(m,pt)` — evaluasi DERIVED satu titik thd kurva kini: titik manual
+     memakai `{irt,iop}` simpanannya, titik `'calc'`/probe menurunkan koordinat dari
+     `{i1,i2}` + metode restraint; hasil `{irt,iop,thr,status,margin}` dipakai
+     renderPlane/renderTable/renderSide/tooltip (diuji model.test.js).
    - **Modul `slopeList`** — satu-satunya pemilik invariant daftar slope (percent 1–200;
      breakpoint monoton naik, gap 0.1, pertama ≥0.6, ≤20; slope terakhir open; 1..4;
      Slope 1 tak bisa dihapus; id di-assign internal). Setiap perintah
@@ -98,8 +102,10 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 - **Jangan clamp/normalisasi slope di luar `slopeList`** — modul itu satu-satunya pemilik
   invariant; `renderSlopes` membaca batas via `SL.bounds(id)` (tidak menghitung ulang,
   tidak memutasi `breakpoint` saat render).
-- **Status titik dihitung ulang setiap `render()`** terhadap kurva saat ini (manual
-  maupun dari kalkulator) — jangan tampilkan `pt.status` lama.
+- **Status titik DERIVED via `evaluatePoint(m,pt)`** — titik menyimpan input saja
+  (manual: `{irt,iop}` klik/seret; `'calc'`: `{i1,i2}` yang koordinatnya mengikuti
+  metode restraint). `thr/status/margin` dihitung tiap render, tidak pernah disimpan →
+  status titik tak mungkin basi terhadap perubahan kurva.
 - **Dekorasi SVG tidak menangkap pointer**: `#plane line/polygon/polyline/text`
   `pointer-events:none` — kalau dihapus, klik "tambah titik" tidak akan kena kecuali
   tepat di kotak latar `[data-plot-bg]`.
