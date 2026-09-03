@@ -22,8 +22,13 @@ menghitung titik dari arus dua sisi (I1, I2).
 - **Model perhitungan & daftar fitur** — port dari PRD **relay diferensial** lama
   (`diff relay/PRD.md`, salinannya ada di `docs/PRD.md` = sumber kebenaran).
 - **Extras v1** (di luar PRD lama): preset cepat (Dual-slope/Multi adaptif), tombol
-  skenario arus (Normal/Eksternal/Internal/Saturasi CT), dan tombol animasi sapuan
-  *eksternal → internal* (titik berjalan menyeberangi kurva).
+  skenario arus (Normal/Eksternal/Internal/Saturasi CT/Inrush), tombol animasi sapuan
+  *eksternal → internal* (titik berjalan menyeberangi kurva), **kartu faktor kesalahan
+  pengukuran** (CT per sisi + mismatch rasio → titik sejati vs titik terukur), dan
+  **tooltip hover** elemen plot.
+- **Revisi desain (sesi ini):** kartu kanan = **nilai langsung** (baris label→nilai,
+  formula, tanpa kalimat ringkasan & tanpa kotak edukasi; PALSU/TERLEWAT jadi sisipan
+  kecil di baris margin); tooltip hanya untuk elemen yang digambar (margin ±10 px).
 
 ## Menjalankan
 
@@ -40,7 +45,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 
 | File | Isi |
 |---|---|
-| `differential_relay_simulator.html` | Seluruh aplikasi (markup + CSS + `<script>` ≈ 1200 baris). |
+| `differential_relay_simulator.html` | Seluruh aplikasi (markup + CSS + `<script>` ≈ 1300 baris). |
 | `docs/PRD.md` | PRD lengkap fitur/desain/model **yang lama** — §5 dasar teori & §7 design system **tidak** dipakai (desain mengikuti Distance Relay); §5 model tetap sumber kebenaran hitung. |
 | `docs/overview.md` | Dokumen ini. |
 | `CLAUDE.md` | Panduan arsitektur/konvensi untuk agen coding. |
@@ -54,8 +59,8 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 
 1. **Helper** (`fmt`, `clamp`, `fmtSign`, `niceCeil`/`niceStep` 1-2-5) — dipakai renderer grid.
 2. **State global** — satu objek `S`: `S.param` (`P`) = `{pickup, method, slopes[], i1, i2,
-   points[], selectedId, probe, probeTrace}`; `S.ui.collapsed` = status collapse kartu.
-   Semua kontrol menulis ke `S`/`P`; tidak ada state lain.
+   err:{ct1,ct2,mm}, points[], selectedId, probe, probeTrace}`; `S.ui.collapsed` = status
+   collapse kartu (curve/err/calc). Semua kontrol menulis ke `S`/`P`; tidak ada state lain.
 3. **Model murni** (dipakai renderer + tes):
    - `iopOf(i1,i2)=|i1−i2|`; `irtOf(i1,i2,method)` = Average `(|i1|+|i2|)/2` atau
      Maximum `max(|i1|,|i2|)`.
@@ -67,10 +72,21 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
      dan puncak kurva ×1.2 (minimal 1). Skala bidang **dari kurva**, bukan dari titik.
    - `curveSample(m,xMax)` — titik sampel ambang per segmen (breakpoint dijaga sebagai
      titik sampel agar kurva tidak membulat di sambungan).
+   - `measuredPair(i1,i2,err)` — arus yang DILIHAT relay setelah faktor kesalahan:
+     `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct = saturasi/rasio sisi,
+     0..95%; mm = mismatch rasio ±30% pd I₂). Error hanya menggeser titik ber-I1/I2
+     (kalkulator/skenario/probe); titik manual sudah di bidang terukur.
    - `evaluatePoint(m,pt)` — evaluasi DERIVED satu titik thd kurva kini: titik manual
      memakai `{irt,iop}` simpanannya, titik `'calc'`/probe menurunkan koordinat dari
-     `{i1,i2}` + metode restraint; hasil `{irt,iop,thr,status,margin}` dipakai
-     renderPlane/renderTable/renderSide/tooltip (diuji model.test.js).
+     pasangan TERUKUR `measuredPair` + metode restraint. Hasil
+     `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,trueStatus}` —
+     keputusan selalu di titik TERUKUR; koordinat/status SEJATI dilaporkan untuk ghost
+     & baris "Sejati/Status sejati". Default `err` 0 → identik dgn arus asli (literal
+     lama tetap hijau). Dipakai renderPlane/renderTable/renderSide/tooltip (diuji
+     model.test.js).
+   - `hoverInfo(map,irt,iop)` — tooltip murni: hanya ELEMEN yang digambar (titik
+     uji/probe, marker BP, garis pickup, kurva ambang), masing-masing dgn margin ±10 px
+     data; → `{kind,head,rows}` atau `null` (diuji ui.test.js).
    - **Modul `slopeList`** — satu-satunya pemilik invariant daftar slope (percent 1–200;
      breakpoint monoton naik, gap 0.1, pertama ≥0.6, ≤20; slope terakhir open; 1..4;
      Slope 1 tak bisa dihapus; id di-assign internal). Setiap perintah
@@ -85,7 +101,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 5. **Renderer**: `renderPlane` (SVG #plane adaptif, viewBox = ukuran elemen; grid 1-2-5,
    tick label ber-halo putih, poligon DAERAH TRIP/RESTRAIN, kurva, garis pickup
    putus-putus, marker BP, titik uji, titik+jejak animasi), `renderTable`, `renderSide`
-   (status + readout 2 grup + formula KaTeX + edukasi kontekstual), `renderWarnings`.
+   (status box + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan` + formula
+   KaTeX; **tanpa** `.r-sum` & tanpa `#eduNote`), `renderWarnings`. Tooltip elemen
+   dirender ke `#planeTip` (di dalam `.plane-card`, ikut kursor) via `hoverInfo`.
 6. **Interaksi plot**: klik area → tambah titik manual; seret lingkaran → pindah;
    `pointerToPu` memakai `plane._map` + skala `clientWidth/viewBox`.
 7. **`render()`** master — satu-satunya entry point: hitung ulang status semua titik thd
@@ -108,9 +126,11 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
   (manual: `{irt,iop}` klik/seret; `'calc'`: `{i1,i2}` yang koordinatnya mengikuti
   metode restraint). `thr/status/margin` dihitung tiap render, tidak pernah disimpan →
   status titik tak mungkin basi terhadap perubahan kurva.
-- **Dekorasi SVG tidak menangkap pointer**: `#plane line/polygon/polyline/text`
-  `pointer-events:none` — kalau dihapus, klik "tambah titik" tidak akan kena kecuali
-  tepat di kotak latar `[data-plot-bg]`.
+- **Dekorasi SVG tidak menangkap pointer**: `#plane line/polygon/polyline/text` dan
+  ghost `circle[data-true-point]` ber-`pointer-events:none` — kalau dihapus, klik
+  "tambah titik" tidak akan kena kecuali tepat di kotak latar `[data-plot-bg]`.
+- **Kartu kanan = nilai langsung**: jangan kembalikan `.r-sum` / `#eduNote` /
+  `renderEdu` (dihapus sesi ini). Penjelasan skenario → `#scenHint` (panel kiri).
 - Elemen yang bisa diklik plot: lingkaran titik (`[data-point]`) dan latar
   (`[data-plot-bg]`).
 - Warna/teks semua lewat variabel `:root` / class; label SVG memakai halo
@@ -123,9 +143,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ## Validasi (tanpa build)
 
 ```bash
-node tools/model.test.js       # 25 asersi literals model (PRD §5)
+node tools/model.test.js       # 42 asersi literals model (PRD §5 + measuredPair/error)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 22 asersi seam desain + perilaku UI
+node tools/ui.test.js          # 46 asersi seam desain + perilaku UI (termasuk hoverInfo)
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari

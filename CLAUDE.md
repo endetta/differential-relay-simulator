@@ -9,7 +9,9 @@ Satu file mandiri: **`differential_relay_simulator.html`** — simulator edukasi
 diferensial persentase (ANSI/IEEE 87)** yang berjalan penuh di browser. Plotnya adalah
 bidang **Iop–Irt** (arus operasi vs arus restraint/bias): kurva ambang **multi-slope**
 (pickup, slope 1..N, breakpoint), daerah TRIP/RESTRAIN, titik uji (klik/seret + dari
-kalkulator I1/I2), plus preset, skenario arus, dan animasi sapuan *eksternal → internal*.
+kalkulator I1/I2), kartu **faktor kesalahan pengukuran** (error/saturasi CT per sisi +
+mismatch rasio → titik sejati vs titik terukur), tooltip hover elemen plot, plus preset,
+skenario arus (incl. Inrush sbg pembanding), dan animasi sapuan *eksternal → internal*.
 Untuk orientasi cepat (TL;DR, peta file, gotcha) baca `docs/overview.md`; **model &
 rumus**: `docs/PRD.md` §5 (sumber kebenaran — jangan ubah rumus inti tanpa memperbarui
 dokumen itu juga).
@@ -34,12 +36,12 @@ Buka `.html` langsung di browser (`file:///...`), atau static server
 Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 
 ```bash
-node tools/model.test.js       # 25 asersi literals model murni (PRD §5)
+node tools/model.test.js       # 42 asersi literals model murni (PRD §5 + error CT)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 22 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 46 asersi seam desain & perilaku UI
 ```
 
-Kedua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
+Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
 file di-rename.
 
 ## Git & GitHub
@@ -56,13 +58,20 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 1. **Helper** — `fmt`, `clamp`, `fmtSign`, `niceCeil`/`niceStep` (grid 1-2-5).
 2. **State global** `S` — `S.param` (`P`): `pickup`, `method` (`'average'|'maximum'`),
    `slopes[]` (`{id,percent,breakpoint}`; **slope terakhir `breakpoint:null`** = sampai
-   ∞), `i1`/`i2`, `points[]` (`{id,source:'manual'|'calc',irt,iop,i1,i2}`),
-   `selectedId`, `probe`/`probeTrace` (animasi). `S.ui.collapsed`. Semua kontrol menulis
-   ke `S`; tidak ada state lain.
+   ∞), `i1`/`i2`, `err` = `{ct1,ct2,mm}` (faktor kesalahan %, lihat model), `points[]`
+   (`{id,source:'manual'|'calc',irt,iop,i1,i2}`), `selectedId`, `probe`/`probeTrace`
+   (animasi). `S.ui.collapsed`. Semua kontrol menulis ke `S`; tidak ada state lain.
 3. **Model murni** — `iopOf`, `irtOf`, `slopeLine` (kumulatif), `thresholdAt
    = max(pickup, slopeLine)`, `statusOf` (TRIP iff `iop > threshold+1e-12` — tepat di
    kurva = RESTRAIN), `marginOf`, `computeDomain`, `curveSample`. Konvensi: fungsi
    memakai `m={pickup,method,slopes}` supaya bisa diuji dengan objek sintetis.
+   **Faktor kesalahan pengukuran** (di luar PRD §5): `measuredPair(i1,i2,err)` = arus
+   yang DILIHAT relay — `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct
+   saturasi 0..95% mengecilkan; mm mismatch ±30% faktor pada I₂). `evaluatePoint` untuk
+   titik `i1/i2` memakai pasangan TERUKUR ini sebagai keputusan, dan melaporkan juga
+   koordinat sejati: `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,
+   trueStatus}` (`hasErr` = koordinat bergeser). `err` default 0 → semua literal lama
+   tetap berlaku; objek `m` sintetis tanpa `err` aman (dianggap 0).
    Daftar slope diurus **modul `slopeList`** (`SL` membungkus `P.slopes`): satu-satunya
    pemilik invariant & clamp (percent 1–200; bp monoton naik gap 0.1, pertama ≥0.6,
    ≤20; terakhir open; 1..4; Slope 1 dilindungi; id internal). Perintah
@@ -73,9 +82,13 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    ukuran elemen aktual `clientWidth/Height`, fallback `640×440` untuk tes; grid+tick
    ber-halo putih `paint-order:stroke`; poligon DAERAH TRIP/RESTRAIN pakai
    `var(--red-soft)`/`var(--green-soft)`; kurva `stroke:var(--ink)`; pickup putus-putus
-   copper; marker `BPn` teal), `renderTable`, `renderSide` (status box + `.r-sum` +
-   readout 2 grup `Titik uji`/`Keputusan` + formula KaTeX + edukasi kontekstual),
-   `renderWarnings` (peringatan non-blocking PRD §5.6).
+   copper; marker `BPn`   teal; **ghost titik sejati** (`circle[data-true-point]` + garis putus
+   `line[data-err-link]`) hanya saat `hasErr`), `renderTable`, `renderSide` (status box
+   + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan` + formula KaTeX — TANPA
+   kalimat ringkasan & TANPA kotak edukasi; indikator PALSU/TERLEWAT = sisipan kecil di
+   baris margin kotak status), `renderWarnings` (peringatan non-blocking PRD §5.6).
+   **Tooltip hover** (elemen saja, margin ±10 px): `hoverInfo(map,irt,iop)` murni →
+   `{kind:'point'|'bp'|'pickup'|'curve', head, rows}`; `#planeTip` ikut kursor.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
    gotcha di bawah).
@@ -102,7 +115,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - **`pointer-events` SVG**: line/polygon/polyline/text diberi `pointer-events:none`
   (CSS `#plane …{pointer-events:none}`) agar klik/seret hanya kena lingkaran titik
   (`[data-point]`) atau kotak latar `[data-plot-bg]`. Jangan hapus.
-- Jangan simpan state UI di luar `S` (kecuali hal sepele seperti `edu`/`animTimer`).
+- Jangan simpan state UI di luar `S` (kecuali hal sepele seperti `animTimer`).
+- **Kartu kanan = nilai langsung saja**: jangan kembalikan kalimat ringkasan (`.r-sum`)
+  atau kotak edukasi kontekstual (`#eduNote`/`renderEdu`) — keduanya DIHAPUS atas
+  permintaan desain (revisi sesi ini). Penjelasan skenario → 1 hint singkat di bawah
+  tombol skenario (`#scenHint`, panel kiri).
 - KaTeX: cek `typeof katex==='function'` sebelum `katex.render` (fallback teks biasa).
 - Label/teks SVG selalu ber-halo (`paint-order:stroke` + `stroke:var(--surface)`) agar
   terbaca di atas kurva/daerah.

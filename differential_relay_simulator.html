@@ -90,8 +90,9 @@
   .plane-card svg{display:block;margin:0 auto;}
   #plane,#plane *{ -webkit-user-select:none;-moz-user-select:none;user-select:none; }
   /* elemen dekoratif SVG tidak menangkap pointer — klik/seret jatuh ke kotak latar
-     (#plane rect[data-plot-bg]) atau lingkaran titik uji saja. */
-  #plane line,#plane polygon,#plane polyline,#plane text{pointer-events:none;}
+     (#plane rect[data-plot-bg]) atau lingkaran titik uji saja. Titik sejati (ghost)
+     juga tak menangkap pointer. */
+  #plane line,#plane polygon,#plane polyline,#plane text,#plane circle[data-true-point]{pointer-events:none;}
   .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--ink-soft);margin-top:8px;font-family:'JetBrains Mono',monospace;}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;flex:none;}
@@ -100,8 +101,6 @@
   .status .zlabel{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;letter-spacing:-.01em;}
   .status .tlabel{font-family:'JetBrains Mono',monospace;font-size:12px;margin-top:2px;}
   .readout{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink);overflow-y:auto;min-height:0;}
-  .readout .r-sum{font-family:'Inter',sans-serif;font-size:12px;line-height:1.55;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;}
-  .readout .r-sum b{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--blue);white-space:nowrap;}
   .readout .rgroup{margin-top:11px;}
   .readout .rgroup-title{display:flex;align-items:center;gap:8px;font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:2px;}
   .readout .rgroup-title::after{content:'';flex:1;height:1px;background:var(--line);}
@@ -110,9 +109,15 @@
   .readout .rline.key span:last-child{font-weight:600;color:var(--ink);}
   .readout .rline span:last-child{text-align:right;}
   .formula-box{margin-top:6px;overflow-x:auto;padding:4px 0;min-height:24px;}
-  .edu-note{font-size:11px;margin-top:8px;padding:8px 10px;border-radius:7px;background:var(--bg);border:1px solid var(--line);color:var(--ink);line-height:1.5;}
-  .edu-note b{color:var(--blue);font-weight:600;}
-  .edu-note .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* tooltip elemen plot (hanya utk yg DIGAMBAR; ikut kursor) */
+  .plane-card .tip{position:absolute;z-index:8;max-width:240px;pointer-events:none;background:var(--surface);
+    border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(22,35,58,.14);
+    padding:6px 9px;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.6;color:var(--ink);
+    display:flex;flex-direction:column;gap:1px;}
+  .plane-card .tip .t-t{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);}
+  .plane-card .tip .t-t.t-bad{color:var(--red);font-weight:600;}
+  .plane-card .tip .t-t.t-ok{color:var(--green);font-weight:600;}
 
   .badge{display:inline-block;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:10px;letter-spacing:.08em;padding:2px 8px;border-radius:999px;}
   .badge.TRIP{background:var(--red-soft);color:var(--red);}
@@ -279,6 +284,38 @@
           </div></div>
         </div>
 
+        <div class="card" data-card="err">
+          <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="chev">▾</span></div>
+          <div class="card-b"><div class="card-b-i">
+            <div class="field">
+              <label>Error CT sisi 1 — I₁ <b id="errv-ct1">0%</b></label>
+              <div class="ctrlrow">
+                <input type="range" id="err-ct1" min="0" max="95" step="1" value="0">
+                <input type="number" id="err-ct1n" min="0" max="95" step="1" value="0" inputmode="numeric">
+                <span class="unit">%</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Error CT sisi 2 — I₂ <b id="errv-ct2">0%</b></label>
+              <div class="ctrlrow">
+                <input type="range" id="err-ct2" min="0" max="95" step="1" value="0">
+                <input type="number" id="err-ct2n" min="0" max="95" step="1" value="0" inputmode="numeric">
+                <span class="unit">%</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Mismatch rasio CT — I₂ <b id="errv-mm">0%</b></label>
+              <div class="ctrlrow">
+                <input type="range" id="err-mm" min="-30" max="30" step="1" value="0">
+                <input type="number" id="err-mmn" min="-30" max="30" step="1" value="0" inputmode="numeric">
+                <span class="unit">%</span>
+              </div>
+            </div>
+            <div class="hint" style="margin-top:0;">CT jenuh/salah rasio → arus sekunder yang DILIHAT relay mengecil ((1−e/100)×); mismatch rasio = beda penyetelan dua CT (±, faktor pada I₂). Keduanya menggeser titik dari I₁/I₂ (kalkulator/skenario) — keputusan diambil pada titik terukur.</div>
+            <button class="mini-btn" id="errReset" style="width:100%;">Nolkan semua error</button>
+          </div></div>
+        </div>
+
         <div class="card" data-card="calc">
           <div class="card-h"><span class="dot"></span>Kalkulator arus<span class="chev">▾</span></div>
           <div class="card-b"><div class="card-b-i">
@@ -294,6 +331,7 @@
               <button data-v="external">Eksternal</button>
               <button data-v="internal">Internal</button>
               <button data-v="satct">Saturasi CT</button>
+              <button data-v="inrush">Inrush</button>
             </div>
             <div class="hint" id="scenHint">Skenario mengisi I₁ &amp; I₂ — titik bisa ditambahkan ke plot.</div>
           </div></div>
@@ -309,6 +347,7 @@
       <div class="plane-row">
         <div class="plane-card">
           <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;"></svg>
+          <div class="tip" id="planeTip" hidden></div>
           <div class="legend" id="legend"></div>
         </div>
 
@@ -319,7 +358,6 @@
           </div>
           <div class="readout" id="readout"></div>
           <div class="formula-box" id="formulaOut"></div>
-          <div class="edu-note" id="eduNote"></div>
         </div>
       </div>
 
@@ -350,7 +388,7 @@
     <ul>
       <li>Model <b>magnitudo 2-belitan</b>: arus operasi <span class="mono">Iop = |I₁ − I₂|</span> — bukan perhitungan fasor penuh (sudut, harmonik, DC offset).</li>
       <li>Arus restraint Average <span class="mono">(|I₁|+|I₂|)/2</span> atau Maximum <span class="mono">max(|I₁|,|I₂|)</span>.</li>
-      <li>Tidak memodelkan saturasi CT domain-waktu, blocking harmonik ke-2/ke-5 (inrush / overexcitation), kompensasi tap changer, atau belitan ke-3.</li>
+      <li>Saturasi/error CT dimodelkan <b>statis</b>: arus sekunder = (1−e/100)×arus sisi itu; mismatch rasio ± sebagai faktor pada I₂ — bukan transien domain-waktu. Blocking harmonik ke-2/ke-5 (inrush), kompensasi tap changer, dan belitan ke-3 <b>tidak</b> dimodelkan.</li>
       <li>Nilai default hanyalah acuan rentang umum industri, bukan setting akhir sistem nyata.</li>
     </ul>
     <div class="foot"><button class="mini-btn" id="aboutClose2">Tutup</button></div>
@@ -384,12 +422,14 @@ const PRESETS={
   dual:{pickup:0.30,slopes:[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}]},
   multi:{pickup:0.20,slopes:[{percent:25,breakpoint:1.5},{percent:40,breakpoint:4.0},{percent:80,breakpoint:null}]}
 };
-/* Skenario arus (pu) — mengisi I1/I2 kalkulator */
+/* Skenario arus (pu) — I1/I2 = arus SEJATI di primer CT; `err` ikut mengisi kartu
+   Faktor kesalahan (ct1/ct2 dalam %, mm dalam %). autoAdd → titik demo otomatis. */
 const SCENARIOS={
-  normal:  {i1:1.00,i2:1.00,desc:'Beban normal: arus dua sisi hampir sama → Iop kecil, titik jauh di bawah kurva (RESTRAIN).'},
-  external:{i1:5.00,i2:4.75,desc:'Gangguan eksternal (through-fault): arus besar tetapi nyaris sama → Irt besar, Iop kecil → RESTRAIN. Inilah gunanya restraint.'},
-  internal:{i1:5.00,i2:0.00,desc:'Gangguan internal: arus hanya dari satu sisi → Iop = I₁ besar → TRIP kuat.'},
-  satct:   {i1:5.00,i2:3.00,desc:'Eksternal + CT saturasi: CT sisi 2 meleset rendah → Iop palsu membesar → bisa TRIP salah. Slope 2 yang curam menahannya.'}
+  normal:  {i1:1.00,i2:1.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Beban normal: arus dua sisi hampir sama → Iop kecil, titik jauh di bawah kurva (RESTRAIN).'},
+  external:{i1:5.00,i2:4.75,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan eksternal (through-fault): arus besar tetapi nyaris sama → Irt besar, Iop kecil → RESTRAIN. Inilah gunanya restraint. Coba naikkan Error CT sisi 2 di kartu Faktor kesalahan untuk melihat trip palsu.'},
+  internal:{i1:5.00,i2:0.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan internal: arus hanya dari satu sisi → Iop = I₁ besar → TRIP kuat. (Error CT sisi 1 yang besar bisa mengecilkan Iop yang DILIHAT relay → trip terlewat.)'},
+  satct:   {i1:5.00,i2:5.00,err:{ct1:0,ct2:45,mm:0},autoAdd:false,desc:'Through-fault SEJATI 5/5 pu, tetapi CT sisi 2 jenuh 45% (kartu Faktor kesalahan ikut terisi) → relay melihat I₂ = 2.75 pu → Iop palsu 2.25 pu di atas ambang → <b>TRIP PALSU</b>. Inilah alasan slope 2.'},
+  inrush:  {i1:5.00,i2:0.05,err:{ct1:0,ct2:0,mm:0},autoAdd:true,desc:'<b>Inrush magnetisasi</b> (trafo dinyalakan): arus besar hanya dari sisi 1 → kurva magnitudo bilang TRIP (titik demo ditambahkan). Relay NYATA memblokir via <b>restraint harmonik ke-2</b> — tidak dimodelkan di sini. Pembanding: kurva saja belum bisa membedakan inrush dari gangguan internal.'}
 };
 
 const S={
@@ -398,12 +438,13 @@ const S={
     method:'average',               // 'average' | 'maximum'
     slopes:[],                      // diisi SL.load(DEFAULT_SLOPES) di bawah (modul slopeList)
     i1:1.20,i2:0.60,
+    err:{ct1:0,ct2:0,mm:0},        // faktor kesalahan pengukuran (%): lihat measuredPair
     points:[],                      // input saja: {id,source,irt,iop} manual | {id,source,i1,i2} calc
     selectedId:null,
     probe:null,                     // titik animasi sementara {i1,i2} — koordinat/status via evaluatePoint
     probeTrace:null                 // jejak animasi [irt,iop][] (pu) — sejarah, bukan turunan
   },
-  ui:{collapsed:{curve:false,calc:false}}
+  ui:{collapsed:{curve:false,err:false,calc:false}}
 };
 const P=S.param;
 
@@ -513,7 +554,7 @@ const $=id=>document.getElementById(id);
 const plane=$('plane');
 const els={
   slopesContainer:$('slopesContainer'), warnings:$('warnings'),  tbody:$('ptsBody'),
-  readout:$('readout'), eduNote:$('eduNote'),
+  readout:$('readout'),
   statusBox:$('statusBox'), verdictLabel:$('verdictLabel'), marginLabel:$('marginLabel'),
   calcOut:$('calcOut'), formulaOut:$('formulaOut')
 };
@@ -543,15 +584,37 @@ function thresholdAt(m,irt){
 function statusOf(m,iop,irt){ return iop>thresholdAt(m,irt)+1e-12 ? 'TRIP' : 'RESTRAIN'; }
 function marginOf(m,iop,irt){ const t=thresholdAt(m,irt);
   return t<=1e-12 ? 0 : ((iop-t)/t)*100; }
+const ERR0={ct1:0,ct2:0,mm:0};
+/* Arus yang DILIHAT relay setelah faktor kesalahan pengukuran (ANSI 87 — relay
+   diferensial mengukur ARUS, tak ada PT): CT jenuh/salah rasio MENGURANGI arus
+   sekunder sisi itu (faktor (1−e/100)); mismatch rasio = beda penyetelan dua CT,
+   dipakai sebagai faktor (±) pada I₂. I1/I2 (input) = arus SEJATI di primer CT. */
+function measuredPair(i1,i2,err){
+  err=err||ERR0;
+  const c1=clamp(Number(err.ct1)||0,0,95);
+  const c2=clamp(Number(err.ct2)||0,0,95);
+  const mm=clamp(Number(err.mm)||0,-30,30);
+  return { i1m:Math.max(0,i1*(1-c1/100)), i2m:Math.max(0,i2*(1-c2/100)*(1+mm/100)) };
+}
 /* Evaluasi satu titik thd kurva — DERIVED, TIDAK pernah disimpan di objek titik.
-   Titik 'calc' & probe membawa i1/i2 (koordinat diturunkan dari metode restraint
-   saat ini); titik manual membawa irt/iop hasil klik/seret. thr/status/margin
-   selalu dihitung dari (irt,iop) thd kurva SAAT INI → tidak mungkin basi. */
+   Titik 'calc' & probe membawa i1/i2 (koordinat DITURUNKAN dari arus TERUKUR —
+   faktor kesalahan ikut — & metode restraint saat ini); titik manual membawa
+   irt/iop hasil klik/seret (sudah di bidang terukur). Keputusan (status/margin)
+   selalu pada titik TERUKUR thd kurva SAAT INI → tidak mungkin basi. Koordinat
+   sejati (irtTrue/iopTrue) & arus terukur (i1m/i2m) dilaporkan utk digambar. */
 function evaluatePoint(m,pt){
-  const irt=(pt.i1!=null&&pt.i2!=null)?irtOf(pt.i1,pt.i2,m.method):pt.irt;
-  const iop=(pt.i1!=null&&pt.i2!=null)?iopOf(pt.i1,pt.i2):pt.iop;
+  const hasI=pt.i1!=null&&pt.i2!=null;
+  const a=hasI?measuredPair(pt.i1,pt.i2,m.err):null;
+  const irt=hasI?irtOf(a.i1m,a.i2m,m.method):pt.irt;
+  const iop=hasI?iopOf(a.i1m,a.i2m):pt.iop;
+  const irtTrue=hasI?irtOf(pt.i1,pt.i2,m.method):irt;
+  const iopTrue=hasI?iopOf(pt.i1,pt.i2):iop;
   const thr=thresholdAt(m,irt);
-  return {irt,iop,thr,status:statusOf(m,iop,irt),margin:marginOf(m,iop,irt)};
+  return { irt,iop,irtTrue,iopTrue,
+    hasErr:Math.abs(iop-iopTrue)>1e-9||Math.abs(irt-irtTrue)>1e-9,
+    i1m:hasI?a.i1m:null, i2m:hasI?a.i2m:null,
+    thr, status:statusOf(m,iop,irt), margin:marginOf(m,iop,irt),
+    trueStatus:statusOf(m,iopTrue,irtTrue) };
 }
 /* rentang sumbu (pu) dari kurva */
 function computeDomain(m){
@@ -653,10 +716,10 @@ function renderSlopes(){
   }).join('');
 }
 function addSlope(){ if(P.slopes.length>=MAX_SLOPES) return;
-  SL.add(50); edu={topic:'general'};
+  SL.add(50);
   renderSlopes(); render();
 }
-function removeSlope(id){ SL.remove(id); edu={topic:'general'};
+function removeSlope(id){ SL.remove(id);
   renderSlopes(); render();
 }
 $('addSlope').addEventListener('click',addSlope);
@@ -667,7 +730,6 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
   P.pickup=pr.pickup;
   SL.load(pr.slopes);
   $('pickup').value=P.pickup; $('pickupNum').value=P.pickup; $('pickupv').textContent=fmt(P.pickup,2)+' pu';
-  edu={topic:'preset'};
   renderSlopes(); render();
 }));
 
@@ -688,13 +750,22 @@ function removePoint(id){ P.points=P.points.filter(p=>p.id!==id);
 function clearPoints(){ P.points=[]; P.selectedId=null; P.probe=null; P.probeTrace=null; render(); }
 $('clearPoints').addEventListener('click',clearPoints);
 
-/* kalkulator arus */
+/* kalkulator arus — preview menampilkan nilai TERUKUR (keputusan) bila error aktif,
+   plus kondisi sejati sebagai pembanding. */
 function updateCalcPreview(){
   const i1=parseFloat($('i1').value), i2=parseFloat($('i2').value);
   const ok=Number.isFinite(i1)&&Number.isFinite(i2);
-  els.calcOut.innerHTML=ok
-    ? `Iop = <b>${fmt(iopOf(Math.max(0,i1),Math.max(0,i2)))}</b> pu · Irt = <b>${fmt(irtOf(Math.max(0,i1),Math.max(0,i2),P.method))}</b> pu`
-    : 'Iop = — · Irt = —';
+  let out='Iop = — · Irt = —';
+  if(ok){
+    const a1=Math.max(0,i1), a2=Math.max(0,i2);
+    const {i1m,i2m}=measuredPair(a1,a2,P.err);
+    const iop=iopOf(i1m,i2m), irt=irtOf(i1m,i2m,P.method);
+    const iopT=iopOf(a1,a2), irtT=irtOf(a1,a2,P.method);
+    const shifted=Math.abs(iop-iopT)>1e-9||Math.abs(irt-irtT)>1e-9;
+    out=`Iop = <b>${fmt(iop)}</b> pu · Irt = <b>${fmt(irt)}</b> pu`
+      +(shifted?` <span style="color:var(--copper);">(terukur · sejati Iop ${fmt(iopT)} / Irt ${fmt(irtT)})</span>`:'');
+  }
+  els.calcOut.innerHTML=out;
 }
 ['i1','i2'].forEach(id=>$(id).addEventListener('input',updateCalcPreview));
 $('addPointBtn').addEventListener('click',()=>{
@@ -703,15 +774,61 @@ $('addPointBtn').addEventListener('click',()=>{
   const a1=Math.max(0,i1), a2=Math.max(0,i2);
   addPoint('calc',irtOf(a1,a2,P.method),iopOf(a1,a2),a1,a2);
 });
-/* skenario: isi I1/I2 + jelaskan */
+/* ---------- faktor kesalahan pengukuran (CT per sisi + mismatch rasio) ----------
+   Semua lewat P.err: ct1/ct2 = seberapa dalam CT sisi itu MENGURANGI arus sekunder
+   (saturasi/rasio, 0..95%); mm = mismatch rasio dua sisi (±30%, diterapkan ke I₂).
+   Pengaruh model ada di measuredPair/evaluatePoint; di sini hanya DOM + hint singkat
+   di kartu err (tanpa kotak edukasi di kartu kanan). */
+function syncErrDom(){
+  ['ct1','ct2','mm'].forEach(k=>{
+    const v=P.err[k];
+    const r=$('err-'+k), n=$('err-'+k+'n'), o=$('errv-'+k);
+    if(r) r.value=v; if(n) n.value=v; if(o) o.textContent=fmt(v,0)+'%';
+  });
+}
+function applyErr(ct1,ct2,mm){
+  P.err.ct1=clamp(Number(ct1)||0,0,95);
+  P.err.ct2=clamp(Number(ct2)||0,0,95);
+  P.err.mm=clamp(Number(mm)||0,-30,30);
+  syncErrDom();
+}
+function zeroErrors(){ applyErr(0,0,0); render(); }
+function bindErr(key,lo,hi){
+  const r=$('err-'+key), n=$('err-'+key+'n'), out=$('errv-'+key);
+  const commit=v=>{ v=clamp(Number(v),lo,hi); P.err[key]=v;
+    if(r) r.value=v; if(n) n.value=v; if(out) out.textContent=fmt(v,0)+'%'; };
+  if(r) r.addEventListener('input',()=>{ commit(r.value); refresh(); });
+  if(n){
+    n.addEventListener('change',()=>{ commit(n.value); refresh(); });
+    n.addEventListener('input',()=>{ const v=parseFloat(n.value);
+      if(!Number.isNaN(v)){ const c=clamp(v,lo,hi); P.err[key]=c; if(r) r.value=c;
+        if(out) out.textContent=fmt(c,0)+'%'; render(); } });
+  }
+  commit(P.err[key]);
+}
+bindErr('ct1',0,95);
+bindErr('ct2',0,95);
+bindErr('mm',-30,30);
+$('errReset').addEventListener('click',zeroErrors);
+/* skenario: isi I1/I2 (arus SEJATI) + faktor error; penjelasan → hint singkat di
+   bawah tombol skenario (panel kiri); Inrush auto-add titik demo. */
+function runScenario(key){
+  const sc=SCENARIOS[key]; if(!sc) return;
+  applyErr(sc.err.ct1,sc.err.ct2,sc.err.mm);
+  $('i1').value=String(sc.i1); $('i2').value=String(sc.i2);
+  P.i1=sc.i1; P.i2=sc.i2;
+  if(sc.autoAdd){
+    const dupe=P.points.some(p=>p.source==='calc'&&Math.abs((p.i1||0)-sc.i1)<1e-9&&Math.abs((p.i2||0)-sc.i2)<1e-9);
+    if(!dupe) addPoint('calc',0,0,sc.i1,sc.i2);
+  }
+  const hint=$('scenHint');
+  if(hint) hint.innerHTML=sc.desc;
+  render();
+}
 document.querySelectorAll('#scenarioGroup button').forEach(b=>b.addEventListener('click',()=>{
-  const sc=SCENARIOS[b.dataset.v];
   document.querySelectorAll('#scenarioGroup button').forEach(x=>x.classList.remove('active'));
   b.classList.add('active');
-  $('i1').value=sc.i1; $('i2').value=sc.i2;
-  P.i1=sc.i1; P.i2=sc.i2;
-  edu={topic:'scenario',text:sc.desc};
-  updateCalcPreview(); render();
+  runScenario(b.dataset.v);
 }));
 
 /* ---------- animasi sapuan: eksternal → internal ---------- */
@@ -727,8 +844,10 @@ $('animateBtn').addEventListener('click',()=>{
     if(t>=1){ stopAnim(btn); return; }
     const ease=t*t*(3-2*t);                 // smoothstep 0..1
     const I2=I1*(1-ease);                   // I2: dari I1 (eksternal/matching) → 0 (internal)
-    const iop=iopOf(I1,I2), irt=irtOf(I1,I2,P.method);
     P.probe={i1:I1,i2:I2};          // koordinat & status diturunkan evaluatePoint
+    /* jejak di bidang TERUKUR (keputusan): error CT ikut menggesernya */
+    const {i1m,i2m}=measuredPair(I1,I2,P.err);
+    const iop=iopOf(i1m,i2m), irt=irtOf(i1m,i2m,P.method);
     if(!P.probeTrace.length||iop>P.probeTrace[P.probeTrace.length-1][1]+1e-9){
       P.probeTrace.push([irt,iop]);         // jejak hanya saat Iop naik (menuju trip)
     }
@@ -828,6 +947,18 @@ function renderPlane(){
   const pickupY=Yy(m.pickup);
   const pickupDash=`<line x1="${Xx(0)}" y1="${pickupY}" x2="${Xx(xMax)}" y2="${pickupY}" stroke="var(--copper)" stroke-width="1.4" stroke-dasharray="5 4"/>`;
 
+  /* titik sejati (ghost) + garis error — hanya utk titik i1/i2 yang BERGESER oleh
+     faktor kesalahan. Ghost TIDAK menangkap pointer (css) & tak ikut drag. */
+  const errLink=pt=>{
+    const d=evaluatePoint(m,pt);
+    if(!d.hasErr) return '';
+    const tid=pt.id==null?'probe':pt.id;
+    return `<line x1="${Xx(d.irtTrue).toFixed(2)}" y1="${Yy(d.iopTrue).toFixed(2)}" x2="${Xx(d.irt).toFixed(2)}" y2="${Yy(d.iop).toFixed(2)}" stroke="var(--copper-deep)" stroke-width="1.3" stroke-dasharray="4 3" opacity="0.8" data-err-link="${tid}"/>`
+      + `<circle cx="${Xx(d.irtTrue).toFixed(2)}" cy="${Yy(d.iopTrue).toFixed(2)}" r="5.2" fill="var(--surface)" stroke="var(--ink-soft)" stroke-width="1.5" stroke-dasharray="3 2" data-true-point="${tid}"/>`;
+  };
+  let errStr=P.points.map(errLink).join('');
+  if(P.probe) errStr+=errLink(P.probe);
+
   /* titik uji (warna status) + titik animasi + jejak — semua DERIVED via evaluatePoint */
   const ptSvg=pt=>{
     const sel=pt.id===P.selectedId;
@@ -867,7 +998,7 @@ function renderPlane(){
     ${tickX}${tickY}
     <text x="${padL+plotW/2}" y="${dims.h-8}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)">Irt — arus restraint (pu)</text>
     <text x="13" y="${padT+plotH/2}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)" transform="rotate(-90 13 ${padT+plotH/2})">Iop — arus operasi (pu)</text>
-    ${ptsStr}`;
+    ${errStr}${ptsStr}`;
 
   /* legenda */
   $('legend').innerHTML=`
@@ -876,7 +1007,8 @@ function renderPlane(){
     <span><i style="background:var(--red-soft);"></i>daerah TRIP</span>
     <span><i style="background:var(--green-soft);"></i>daerah RESTRAIN</span>
     <span><i style="background:var(--green);border-radius:50%;"></i>titik RESTRAIN</span>
-    <span><i style="background:var(--red);border-radius:50%;"></i>titik TRIP</span>`;
+    <span><i style="background:var(--red);border-radius:50%;"></i>titik TRIP</span>
+    <span><i style="background:var(--surface);border:1px solid var(--ink-soft);border-radius:50%;"></i>titik sejati (tanpa error)</span>`;
 }
 
 /* ---------- interaksi plot: klik tambah, seret pindah ---------- */
@@ -955,8 +1087,10 @@ els.tbody.addEventListener('click',e=>{
   if(tr) selectPoint(Number(tr.dataset.row));
 });
 
-/* ---------- kartu kanan: status + readout + formula + edukasi ---------- */
-let edu={topic:'general'};
+/* ---------- kartu kanan: status + readout NILAI LANGSUNG + formula ----------
+   Tanpa kalimat ringkasan & tanpa kotak edukasi: baris label→nilai saja.
+   Keputusan yang BERTENTANGAN dgn kondisi sejati (error CT) tampil sbg sisipan
+   kecil di baris margin kotak status (PALSU/TERLEWAT) + baris 'Status sejati'. */
 const STATUS_C={TRIP:'var(--red)',RESTRAIN:'var(--green)'};
 const STATUS_S={TRIP:'var(--red-soft)',RESTRAIN:'var(--green-soft)'};
 function renderSide(){
@@ -968,7 +1102,11 @@ function renderSide(){
     vl.textContent=d.status;
     vl.style.color=STATUS_C[d.status];
     stBox.style.background=STATUS_S[d.status];
-    ml.textContent=`margin ${fmtSign(d.margin)} · ${d.status==='TRIP'?'di atas kurva':'di bawah kurva'}`;
+    const pos=d.status==='TRIP'?'di atas kurva':'di bawah kurva';
+    const flag=(d.hasErr&&d.status!==d.trueStatus)
+      ? (d.status==='TRIP'?`PALSU — sejati ${d.trueStatus}`:`TERLEWAT — sejati ${d.trueStatus}`)
+      : pos;
+    ml.textContent=`margin ${fmtSign(d.margin)} · ${flag}`;
   } else if(P.points.length){
     vl.textContent='—'; ml.textContent='pilih titik dari tabel atau plot';
     stBox.style.background='var(--bg)'; vl.style.color='var(--ink-soft)';
@@ -976,87 +1114,127 @@ function renderSide(){
     vl.textContent='—'; ml.textContent='belum ada titik uji';
     stBox.style.background='var(--bg)'; vl.style.color='var(--ink-soft)';
   }
-  /* ringkasan + grup readout */
-  let summary,rowsTitik,rowsKep;
+  /* grup readout: baris label→nilai saja */
+  let rowsTitik='',rowsKep='';
   if(d){
     const t=d.thr;
-    const srcTxt=selPt.source==='calc'
-      ? (selPt.i1!=null?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
-      : (selPt.i1!=null?'Animasi sapuan':'Klik pada plot');
-    const ok=d.status==='TRIP';
-    summary=ok
-      ? `Titik di <b>Irt ${fmt(d.irt)} pu</b> dengan <b>Iop ${fmt(d.iop)} pu</b> berada di <b>atas</b> ambang ${fmt(t)} pu → <b>TRIP</b> (margin ${fmtSign(d.margin)}).`
-      : `Titik di <b>Irt ${fmt(d.irt)} pu</b> dengan <b>Iop ${fmt(d.iop)} pu</b> masih di <b>bawah</b> ambang ${fmt(t)} pu → <b>RESTRAIN</b> (margin ${fmtSign(d.margin)}).`;
+    const fromI=selPt.i1!=null&&selPt.i2!=null;
+    const srcTxt=(selPt.source==='calc'||selPt.source==='probe')
+      ? (fromI?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
+      : (fromI?'Animasi sapuan':'Klik pada plot');
     rowsTitik=`
       <div class="rline"><span>Sumber titik</span><span>${srcTxt}</span></div>
       <div class="rline key"><span>Irt (restraint)</span><span>${fmt(d.irt)} pu</span></div>
-      <div class="rline key"><span>Iop (operasi)</span><span>${fmt(d.iop)} pu</span></div>
+      <div class="rline key"><span>Iop (operasi)</span><span>${fmt(d.iop)} pu</span></div>`
+      +(d.hasErr?`
+      <div class="rline"><span>Sejati (Irt/Iop)</span><span>${fmt(d.irtTrue)} / ${fmt(d.iopTrue)} pu</span></div>`:'')
+      +`
       <div class="rline"><span>Ambang kurva</span><span>${fmt(t)} pu</span></div>`;
     rowsKep=`
-      <div class="rline"><span>Keputusan</span><span>${d.status}</span></div>
-      <div class="rline"><span>Margin</span><span>${fmtSign(d.margin)}</span></div>
-      <div class="rline"><span>Selisih Iop − ambang</span><span>${ok?'+':'−'}${fmt(Math.abs(d.iop-t))} pu</span></div>`;
-  } else {
-    summary='Belum ada titik uji. <b>Klik plot</b> untuk menempatkan titik manual, isi <b>I₁/I₂</b> di Kalkulator arus, atau pilih <b>Skenario</b> — setiap titik langsung dinilai TRIP/RESTRAIN.';
-    rowsTitik='';
-    rowsKep='';
+      <div class="rline key"><span>Keputusan</span><span>${d.status}</span></div>`
+      +(d.hasErr?`
+      <div class="rline"><span>Status sejati</span><span>${d.trueStatus}</span></div>`:'')
+      +`
+      <div class="rline"><span>Selisih Iop − ambang</span><span>${d.iop>=t?'+':'−'}${fmt(Math.abs(d.iop-t))} pu</span></div>`;
   }
-  els.readout.innerHTML=`
-    <div class="r-sum">${summary}</div>
-    ${rowsTitik?`<div class="rgroup"><div class="rgroup-title">Titik uji</div>${rowsTitik}</div>`:''}
-    ${rowsKep?`<div class="rgroup"><div class="rgroup-title">Keputusan</div>${rowsKep}</div>`:''}`;
+  els.readout.innerHTML=d
+    ? `<div class="rgroup"><div class="rgroup-title">Titik uji</div>${rowsTitik}</div>
+       <div class="rgroup"><div class="rgroup-title">Keputusan</div>${rowsKep}</div>`
+    : '';
 
-  /* formula KaTeX */
-  const eq=d
-    ? (selPt.source==='calc'
-        ? `I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`
-        : `I_{op}=${fmt(d.iop)}\\,\\text{pu} > ${fmt(d.thr)}\\,\\text{pu}=f(I_{rt})`)
-    : `I_{op}=|I_1-I_2|,\\qquad I_{rt}=\\begin{cases}(|I_1|+|I_2|)/2,&\\text{Average}\\\\\\max(|I_1|,|I_2|),&\\text{Maximum}\\end{cases}`;
-  if(typeof katex==='function') katex.render(eq,els.formulaOut,{displayMode:true,throwOnError:false});
-  else els.formulaOut.textContent='Iop = |I1 − I2|  ·  Irt = (|I1|+|I2|)/2  atau  max(|I1|,|I2|)';
-
-  renderEdu();
-}
-
-/* edukasi kontekstual (PRD §6.5) — berubah sesuai kontrol yang disentuh */
-function renderEdu(){
-  const t=edu.topic;
-  let html;
-  if(t==='pickup'){
-    html=`<b>Minimum pickup (${fmt(P.pickup)} pu)</b> = batas bawah sensitivitas: berapa pun Irt, relay tidak trip bila Iop di bawah garis ini. Naikkan → tahan trip palsu dari error CT kecil; turunkan → lebih sensitif ke gangguan internal.`;
-  } else if(t==='slope'&&edu.index!=null){
-    const s=P.slopes[edu.index];
-    html=`<b>Slope ${edu.index+1} (${s.percent}%)</b> = kemiringan kurva ambang. Slope 1 mengakomodasi ketidakcocokan CT & tap changer pada arus moderat; slope lebih curam memberi stabilitas saat arus through besar (saturasi CT).`;
-  } else if(t==='breakpoint'&&edu.index!=null){
-    const s=P.slopes[edu.index];
-    html=`<b>Breakpoint ${edu.index+2}</b> di <span class="mono">Irt ${s.breakpoint==null?'∞':fmt(s.breakpoint)+' pu'}</span>: titik tempat kurva beralih dari Slope ${edu.index+1} ke Slope ${edu.index+2}. Geser ke kiri → relay lebih cepat memakai slope stabilitas tinggi.`;
-  } else if(t==='method'){
-    html=`<b>Metode restraint</b> menentukan Irt titik dari kalkulator: <span class="mono">Average=(|I₁|+|I₂|)/2</span> atau <span class="mono">Maximum=max(|I₁|,|I₂|)</span>. Maximum memberi Irt lebih besar → titik bergeser kanan → umumnya lebih konservatif. Kurva ambang tidak berubah.`;
-  } else if(t==='preset'){
-    html=`Preset diterapkan. <b>Dual-slope</b> = konfigurasi umum 25%/65%; <b>Multi adaptif</b> menambah slope ke-3 agar tetap sensitif di arus menengah namun stabil di arus sangat besar.`;
-  } else if(t==='scenario'){
-    html=edu.text||'';
-  } else if(t==='point'){
-    html=`<b>Di atas kurva ambang → TRIP</b> (indikasi gangguan internal yang sah); <b>di bawah → RESTRAIN</b> (perbedaan arus masih wajar). Margin positif besar = keputusan trip kuat; negatif = aman, makin jauh makin kuat menahan.`;
+  /* formula KaTeX — hanya saat ada titik (nilai evaluasi); kosong jika tak ada */
+  const fo=els.formulaOut;
+  if(d){
+    fo.style.display='block';
+    const fromI=selPt.i1!=null&&selPt.i2!=null;
+    let eq;
+    if(fromI&&d.hasErr){
+      eq=`I_{1m}=${fmt(d.i1m)}\\,\\text{pu},\\quad I_{2m}=${fmt(d.i2m)}\\,\\text{pu}\\Rightarrow I_{op}=|I_{1m}-I_{2m}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`;
+    } else if(fromI){
+      eq=`I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`;
+    } else {
+      eq=`I_{op}=${fmt(d.iop)}\\,\\text{pu} > ${fmt(d.thr)}\\,\\text{pu}=f(I_{rt})`;
+    }
+    if(typeof katex==='function') katex.render(eq,fo,{displayMode:true,throwOnError:false});
+    else fo.textContent='Iop = '+fmt(d.iop)+' pu · Irt = '+fmt(d.irt)+' pu';
   } else {
-    html=`<b>Bagaimana relay memutuskan?</b> Arus operasi <span class="mono">Iop = |I₁ − I₂|</span> dibandingkan dengan ambang kurva pada arus restraint <span class="mono">Irt</span> (Average/Maximum). Titik di <b>atas</b> kurva → <b>TRIP</b>; di <b>bawah</b> → <b>RESTRAIN</b>. Sentuh kontrol kiri untuk penjelasan kontekstual.`;
+    fo.style.display='none'; fo.innerHTML='';
   }
-  els.eduNote.innerHTML=html;
 }
 function selectPoint(id){
   P.selectedId=P.points.some(p=>p.id===id)?id:null;
-  edu={topic:'point'};
   render();
 }
-/* hover pada plot → tooltip kecil */
+
+/* ---------- tooltip elemen (hover) ----------
+   Tooltip hanya utk ELEMEN GAMBAR: titik uji/probe, marker BP, garis pickup, dan
+   kurva ambang — masing-masing diberi margin ±10 px (data units) agar mudah kena
+   kursor. Murni (hoverInfo) & diuji tools/ui.test.js. */
+function hoverInfo(map, irt, iop){
+  const m=map.m;
+  const dx=(10/map.plotW)*map.xMax, dy=(10/map.plotH)*map.yMax;
+  const near=(x,y)=>{ const nx=(irt-x)/dx, ny=(iop-y)/dy; return nx*nx+ny*ny; };
+  let best=null,bd=Infinity;
+  const cand=[];
+  P.points.forEach(pt=>cand.push({kind:'point',pt}));
+  if(P.probe) cand.push({kind:'point',pt:P.probe,probe:true});
+  m.slopes.forEach((s,i)=>{ if(s.breakpoint!=null&&s.breakpoint<=map.xMax)
+    cand.push({kind:'bp',i,bp:s.breakpoint}); });
+  cand.push({kind:'pickup'});
+  for(const c of cand){
+    let dist;
+    if(c.kind==='pickup') dist=Math.abs(iop-m.pickup)/dy;
+    else if(c.kind==='point'){ const d=evaluatePoint(m,c.pt); c._d=d; dist=near(d.irt,d.iop); }
+    else dist=near(c.bp,thresholdAt(m,c.bp));
+    if(dist<=1&&dist<bd){ bd=dist; best=c; }
+  }
+  if(best){
+    if(best.kind==='point'){
+      const d=best._d;
+      const rows=[`Irt ${fmt(d.irt)} pu`,`Iop ${fmt(d.iop)} pu`];
+      if(d.hasErr) rows.push(`sejati: Irt ${fmt(d.irtTrue)} · Iop ${fmt(d.iopTrue)} pu`);
+      return {kind:'point', head:(best.probe?'probe · ':'titik uji · ')+d.status, rows};
+    }
+    if(best.kind==='bp'){
+      const t=thresholdAt(m,best.bp);
+      return {kind:'bp', head:`Breakpoint ${best.i+1}`, rows:[`Irt ${fmt(best.bp)} pu`,`ambang ${fmt(t)} pu`,`slope ${m.slopes[best.i].percent}%`]};
+    }
+    return {kind:'pickup', head:'pickup', rows:[`Iop ${fmt(m.pickup)} pu`]};
+  }
+  /* kurva ambang: margin VERTIKAL ±10 px dari kurva (semua Irt dlm sumbu) */
+  const t=thresholdAt(m,irt);
+  if(irt>=0&&irt<=map.xMax&&Math.abs(iop-t)<=dy)
+    return {kind:'curve', head:'kurva ambang', rows:[`Irt ${fmt(irt)} pu`,`ambang ${fmt(t)} pu`,`kursor: Iop ${fmt(iop)} pu · ${iop>t+1e-9?'di atas kurva':'di bawah kurva'}`]};
+  return null;
+}
+function renderTip(tip,h){
+  const cls=h.kind==='point'?(h.head.includes('TRIP')?'t-bad':'t-ok'):'';
+  tip.innerHTML=`<span class="t-t ${cls}">${h.head}</span>`+h.rows.map(r=>`<span>${r}</span>`).join('');
+}
+function planeHoverPos(e){
+  const map=plane._map; if(!map) return null;
+  const rect=plane.getBoundingClientRect(); if(!rect.width||!rect.height) return null;
+  const dims=planeDims();
+  const px=(e.clientX-rect.left)*dims.w/rect.width, py=(e.clientY-rect.top)*dims.h/rect.height;
+  if(px<map.padL||px>map.padL+map.plotW||py<map.padT||py>map.padT+map.plotH) return null;
+  return { irt:clamp(((px-map.padL)/map.plotW)*map.xMax,0,map.xMax),
+           iop:clamp(map.yMax*(1-(py-map.padT)/map.plotH),0,map.yMax) };
+}
 plane.addEventListener('pointermove',e=>{
-  const c=e.target.closest?e.target.closest('[data-point]'):null;
-  if(!c) return;
-  const pt=P.points.find(p=>p.id===Number(c.dataset.point));
-  if(pt){ const d=evaluatePoint(P,pt);
-    plane.title=`Irt ${fmt(d.irt)} pu · Iop ${fmt(d.iop)} pu · ${d.status} (${fmtSign(d.margin)})`; }
+  const tip=$('planeTip'); if(!tip) return;
+  const pos=planeHoverPos(e);
+  const h=pos?hoverInfo(plane._map,pos.irt,pos.iop):null;
+  if(!h){ tip.hidden=true; return; }
+  renderTip(tip,h);
+  tip.hidden=false;
+  const rect=plane.getBoundingClientRect();
+  let lx=e.clientX-rect.left+16, ly=e.clientY-rect.top+14;
+  const tw=tip.offsetWidth||200, th=tip.offsetHeight||60;
+  if(lx+tw>rect.width-6) lx=Math.max(4,e.clientX-rect.left-tw-14);
+  if(ly+th>rect.height-6) ly=Math.max(4,rect.height-th-8);
+  tip.style.left=lx+'px'; tip.style.top=ly+'px';
 });
-plane.addEventListener('pointerleave',()=>{ plane.title=''; });
+plane.addEventListener('pointerleave',()=>{ const tip=$('planeTip'); if(tip) tip.hidden=true; });
 
 /* ---------- peringatan non-blocking (PRD §5.6) ----------
    Hanya kombinasi "tidak umum tapi legal" yang tersisa — keadaan ilegal tidak
@@ -1135,12 +1313,14 @@ syncCollapsedCentering();
    ========================================================= */
 const API={
   render, S, P,
-  thresholdAt, statusOf, marginOf, iopOf, irtOf, evaluatePoint,
+  thresholdAt, statusOf, marginOf, iopOf, irtOf, evaluatePoint, measuredPair,
   computeDomain, curveSample, slopeLine,
   slopeList, SL,
   syncCollapsedCentering,
   addPoint, selectPoint, clearPoints, removePoint,
-  renderPlane, setMethod, stopAnim
+  applyErr, zeroErrors, runScenario,
+  renderPlane, setMethod, stopAnim,
+  hoverInfo
 };
 </script>
 </body>

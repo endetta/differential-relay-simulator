@@ -17,7 +17,7 @@ function approx(act, exp, tol, ctx) {
 }
 
 const ctx = loadSimulator(HTML);
-const { iopOf, irtOf, slopeLine, thresholdAt, statusOf, marginOf, evaluatePoint, computeDomain, render } = ctx.pub;
+const { iopOf, irtOf, slopeLine, thresholdAt, statusOf, marginOf, evaluatePoint, measuredPair, computeDomain, render } = ctx.pub;
 
 /* Konfigurasi default PRD §5.5: pickup 0.30, s1 25% @ 2.0, s2 65% → ∞ */
 const M = { pickup: 0.30, method: 'average', slopes: [
@@ -119,6 +119,83 @@ check('single slope rendah → yMax tetap ≥ 1', () => {
 
 /* simulator ikut render tanpa error */
 check('render() default jalan (tanpa error)', () => { render(); });
+
+/* ===== fitur: faktor kesalahan pengukuran (CT per sisi + mismatch rasio) =====
+   Relay melihat arus TERUKUR: I1m = I1·(1−ct1/100); I2m = I2·(1−ct2/100)·(1+mm/100).
+   Keputusan diambil pada titik terukur; koordinat sejati tetap dilaporkan. */
+check('measuredPair tanpa err = identitas (ct/mm default 0)', () => {
+  const a = measuredPair(5, 4.75);
+  approx(a.i1m, 5, 1e-9, 'i1m'); approx(a.i2m, 4.75, 1e-9, 'i2m');
+  const b = measuredPair(5, 4.75, { ct1: 0, ct2: 0, mm: 0 });
+  approx(b.i1m, 5, 1e-9, 'i1m eksplisit'); approx(b.i2m, 4.75, 1e-9, 'i2m eksplisit');
+});
+check('measuredPair ct2=50 → I2 terukur 2.5 (CT jenuh mengecilkan)', () => {
+  const a = measuredPair(5, 5, { ct1: 0, ct2: 50, mm: 0 });
+  approx(a.i1m, 5, 1e-9, 'i1m'); approx(a.i2m, 2.5, 1e-9, 'i2m');
+});
+check('measuredPair ct1=20 & ct2=50 → 4 & 2.5', () => {
+  const a = measuredPair(5, 5, { ct1: 20, ct2: 50, mm: 0 });
+  approx(a.i1m, 4, 1e-9, 'i1m'); approx(a.i2m, 2.5, 1e-9, 'i2m');
+});
+check('measuredPair mm=+20 → I2 ×1.2 = 5.7', () => {
+  const a = measuredPair(5, 4.75, { ct1: 0, ct2: 0, mm: 20 });
+  approx(a.i2m, 5.7, 1e-9, 'i2m mm+20');
+});
+check('measuredPair mm=−30 → I2 ×0.7 = 3.325', () => {
+  const a = measuredPair(5, 4.75, { ct1: 0, ct2: 0, mm: -30 });
+  approx(a.i2m, 3.325, 1e-9, 'i2m mm-30');
+});
+check('measuredPair kombinasikan ct2+mm: 4.75·0.8·1.25 = 4.75', () => {
+  const a = measuredPair(5, 4.75, { ct1: 0, ct2: 20, mm: 25 });
+  approx(a.i2m, 4.75, 1e-9, 'i2m gabungan');
+});
+check('measuredPair clamp ct ≥ 95% & arus tak negatif', () => {
+  const a = measuredPair(5, 5, { ct1: 95, ct2: 200, mm: 0 });
+  approx(a.i1m, 0.25, 1e-9, 'i1m 5% sisa'); approx(a.i2m, 0.25, 1e-9, 'i2m clamp 95');
+});
+
+/* evaluatePoint — keputusan pada titik TERUKUR, koordinat sejati tetap dilaporkan */
+const E5 = { pickup: 0.30, method: 'average', slopes: M.slopes, err: { ct1: 0, ct2: 50, mm: 0 } };
+check('evaluatePoint eksternal 5/5 + ct2=50 → TRIP PALSU (sejati RESTRAIN)', () => {
+  const d = evaluatePoint(E5, { i1: 5, i2: 5 });
+  approx(d.irt, 3.75, 1e-9, 'irt terukur'); approx(d.iop, 2.5, 1e-9, 'iop terukur');
+  approx(d.irtTrue, 5, 1e-9, 'irt sejati'); approx(d.iopTrue, 0, 1e-9, 'iop sejati');
+  approx(d.thr, 1.6375, 1e-9, 'thr @3.75 = 0.5+0.65·1.75');
+  if (d.status !== 'TRIP') throw new Error('relay melihat TRIP (2.5 > 1.6375)');
+  if (d.trueStatus !== 'RESTRAIN') throw new Error('kondisi sejati harus RESTRAIN');
+  if (!d.hasErr) throw new Error('harus ditandai bergeser');
+  approx(d.margin, 52.6718, 1e-3, 'margin (2.5−1.6375)/1.6375');
+});
+check('evaluatePoint saturasi SIMETRIS ct1=ct2=50 → RESTRAIN (Iop tetap 0, Irt ikut mengecil)', () => {
+  const d = evaluatePoint({ ...E5, err: { ct1: 50, ct2: 50, mm: 0 } }, { i1: 5, i2: 5 });
+  approx(d.irt, 2.5, 1e-9, 'irt terukur (restraint dari arus terukur)'); approx(d.iop, 0, 1e-9, 'iop');
+  approx(d.irtTrue, 5, 1e-9, 'irt sejati');
+  if (d.status !== 'RESTRAIN') throw new Error('dua sisi jenuh sama → tak ada diff PALSU');
+  if (d.trueStatus !== 'RESTRAIN') throw new Error('sejati juga RESTRAIN');
+  if (!d.hasErr) throw new Error('titik bergeser horizontal (Irt 5 → 2.5)');
+});
+check('evaluatePoint internal 5/0 + ct1=50 → TRIP melemah tapi tetap TRIP', () => {
+  const d = evaluatePoint({ ...E5, err: { ct1: 50, ct2: 0, mm: 0 } }, { i1: 5, i2: 0 });
+  approx(d.irt, 1.25, 1e-9, 'irt'); approx(d.iop, 2.5, 1e-9, 'iop terukur');
+  approx(d.thr, 0.3125, 1e-9, 'thr @1.25 = 0.25·1.25');
+  if (d.status !== 'TRIP') throw new Error('masih TRIP');
+  if (d.trueStatus !== 'TRIP') throw new Error('sejati juga TRIP');
+  approx(d.margin, 700, 1e-3, 'margin (2.5−0.3125)/0.3125');
+});
+check('evaluatePoint under-reach: internal 2/0 + ct1=90 → relay RESTRAIN, sejati TRIP', () => {
+  const d = evaluatePoint({ ...E5, err: { ct1: 90, ct2: 0, mm: 0 } }, { i1: 2, i2: 0 });
+  approx(d.irt, 0.1, 1e-9, 'irt'); approx(d.iop, 0.2, 1e-9, 'iop');
+  approx(d.thr, 0.3, 1e-9, 'thr = pickup (0.25·0.1 < 0.3)');
+  if (d.status !== 'RESTRAIN') throw new Error('di bawah pickup → RESTRAIN');
+  if (d.trueStatus !== 'TRIP') throw new Error('kondisi sejati TRIP (Iop 2)');
+  approx(d.margin, -33.3333, 1e-3, 'margin (0.2−0.3)/0.3');
+});
+check('evaluatePoint manual tak terpengaruh error (hasErr false)', () => {
+  const d = evaluatePoint(E5, { irt: 1, iop: 2 });
+  if (d.hasErr) throw new Error('titik manual = bidang terukur, tanpa pergeseran');
+  approx(d.irtTrue, 1, 1e-9, 'irtTrue = irt'); approx(d.iopTrue, 2, 1e-9, 'iopTrue = iop');
+  if (d.status !== 'TRIP') throw new Error('harus TRIP');
+});
 
 console.log(`\n${passed} lulus, ${failed} gagal`);
 process.exit(failed ? 1 : 0);

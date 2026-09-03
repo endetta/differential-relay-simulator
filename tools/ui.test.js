@@ -78,7 +78,7 @@ check('PRD terhubung: model & fitur dijamin di docs/PRD.md (markup kunci hadir)'
 const ctx = loadSimulator(HTML);
 const E = ctx.els;
 const pub = ctx.pub;
-const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, evaluatePoint, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering, SL } = pub;
+const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, evaluatePoint, addPoint, selectPoint, clearPoints, setMethod, syncCollapsedCentering, SL, zeroErrors } = pub;
 render();
 const svg = () => E.plane.innerHTML;
 
@@ -102,7 +102,8 @@ check('SVG plane: marker breakpoint BP1 (bukan BP2 — slope terakhir tanpa bp)'
   if (svg().includes('BP2')) throw new Error('slope terakhir tidak boleh punya marker BP2');
 });
 check('dekorasi SVG tidak menangkap pointer (klik jatuh ke titik/bg)', () => {
-  contains(src, '#plane line,#plane polygon,#plane polyline,#plane text{pointer-events:none;}', 'css');
+  contains(src, '#plane line,#plane polygon,#plane polyline,#plane text', 'css');
+  contains(src, 'pointer-events:none;', 'css');
 });
 
 /* titik: manual di atas kurva → TRIP */
@@ -163,12 +164,12 @@ check('warnings: kurva legal → kosong (modul mengembalikan [])', () => {
   if (E.warnings.innerHTML !== '') throw new Error('default harus tanpa warning');
 });
 
-/* pemusatan saat semua kartu diciutkan */
-check('syncCollapsedCentering: semua ciut → .all-collapsed', () => {
-  S.ui.collapsed.curve = true; S.ui.collapsed.calc = true;
+/* pemusatan saat semua kartu diciutkan (3 kartu: curve/err/calc) */
+check('syncCollapsedCentering: semua ciut → .all-collapsed (3 kartu)', () => {
+  S.ui.collapsed.curve = true; S.ui.collapsed.calc = true; S.ui.collapsed.err = true;
   syncCollapsedCentering();
   if (!E.paramsPanel.classList.contains('all-collapsed')) throw new Error('paramsPanel harus all-collapsed');
-  S.ui.collapsed.curve = false; S.ui.collapsed.calc = false;
+  S.ui.collapsed.curve = false; S.ui.collapsed.calc = false; S.ui.collapsed.err = false;
   syncCollapsedCentering();
   if (E.paramsPanel.classList.contains('all-collapsed')) throw new Error('all-collapsed harus dilepas');
 });
@@ -181,7 +182,7 @@ check('tombol animasi sapuan hadir (eksternal → internal)', () => {
 check('preset cepat & skenario hadir', () => {
   contains(src, 'data-preset="dual"', 'preset dual');
   contains(src, 'data-preset="multi"', 'preset multi');
-  ['normal', 'external', 'internal', 'satct'].forEach(v => contains(src, `data-v="${v}"`, `skenario ${v}`));
+  ['normal', 'external', 'internal', 'satct', 'inrush'].forEach(v => contains(src, `data-v="${v}"`, `skenario ${v}`));
   contains(src, 'SCENARIOS', 'js');
 });
 
@@ -226,6 +227,158 @@ check('DAERAH TRIP label kiri-atas (x=60 anchor start), RESTRAIN kanan-bawah (x=
   if (!rest) throw new Error('RESTRAIN label ber-anchor end tidak ditemukan');
   if (rest[1] !== '618') throw new Error('RESTRAIN harus di x=618 (kanan), dapat ' + rest[1]);
   if (parseFloat(rest[2]) < 300) throw new Error('RESTRAIN harus di bawah (y=' + rest[2] + ')');
+});
+
+/* ===== fitur: faktor kesalahan pengukuran (CT per sisi + mismatch rasio) ===== */
+check('kartu Faktor kesalahan hadir (slider ct1/ct2/mm + reset)', () => {
+  contains(src, 'data-card="err"', 'kartu error');
+  contains(src, 'Faktor kesalahan pengukuran', 'judul kartu');
+  ['err-ct1', 'err-ct1n', 'err-ct2', 'err-ct2n', 'err-mm', 'errReset', 'errv-ct1'].forEach(id => contains(src, 'id="' + id + '"', id));
+  contains(src, 'zeroErrors', 'js zeroErrors');
+  contains(src, 'runScenario', 'js runScenario');
+});
+check('kartu error di antara kurva & kalkulator (collapse ke-3)', () => {
+  const iCurve = src.indexOf('data-card="curve"'), iErr = src.indexOf('data-card="err"'), iCalc = src.indexOf('data-card="calc"');
+  if (!(iCurve < iErr && iErr < iCalc)) throw new Error('urutan kartu harus kurva < err < calc');
+  contains(src, 'collapsed:{curve:false,err:false,calc:false}', 'state collapse 3 kartu');
+});
+check('skenario Inrush hadir (pembanding: kurva saja belum cukup)', () => {
+  contains(src, 'data-v="inrush"', 'tombol inrush');
+  contains(src, 'harmonik ke-2', 'desc inrush menyebut restraint harmonik');
+});
+
+/* titik sejati vs titik terukur — keputusan selalu pada yang DILIHAT relay */
+clearPoints(); pub.P.err.ct1 = 0; pub.P.err.ct2 = 0; pub.P.err.mm = 0;
+addPoint('calc', 0, 0, 5, 5);
+render();
+check('err=0: titik calc 5/5 RESTRAIN, tanpa penanda sejati', () => {
+  if (E.verdictLabel.textContent !== 'RESTRAIN') throw new Error('verdict harus RESTRAIN');
+  if (svg().includes('data-true-point')) throw new Error('tanpa error tak boleh ada titik sejati');
+  if (svg().includes('data-err-link')) throw new Error('tanpa error tak boleh ada garis error');
+});
+pub.P.err.ct2 = 50; pub.P.err.ct1 = 0; pub.P.err.mm = 0;
+render();
+check('ct2=50 pd 5/5 → titik sejati + garis error + TRIP PALSU', () => {
+  contains(svg(), 'data-true-point', 'ghost titik sejati');
+  contains(svg(), 'data-err-link', 'garis penghubung error');
+  if (E.verdictLabel.textContent !== 'TRIP') throw new Error('relay melihat TRIP');
+  contains(E.ptsBody.innerHTML, '>TRIP</span>', 'badge tabel TRIP');
+  contains(E.marginLabel.textContent, 'PALSU', 'indikator PALSU di baris margin');
+  contains(E.marginLabel.textContent, 'sejati RESTRAIN', 'status sejati di baris margin');
+  contains(E.readout.innerHTML, 'Status sejati', 'readout baris status sejati');
+  contains(E.readout.innerHTML, '>RESTRAIN</span>', 'nilai status sejati RESTRAIN');
+});
+pub.zeroErrors();
+render();
+check('zeroErrors → penanda hilang, kembali RESTRAIN', () => {
+  if (svg().includes('data-true-point')) throw new Error('penanda harus hilang setelah reset');
+  if (svg().includes('data-err-link')) throw new Error('garis harus hilang setelah reset');
+  if (E.verdictLabel.textContent !== 'RESTRAIN') throw new Error('verdict kembali RESTRAIN');
+});
+
+/* preview kalkulator: nilai TERUKUR saat error aktif */
+P.method = 'average';
+E.i1.value = '5'; E.i2.value = '5';
+pub.P.err.ct2 = 50; pub.P.err.ct1 = 0; pub.P.err.mm = 0;
+render();
+check('preview kalkulator menampilkan nilai TERUKUR saat error aktif', () => {
+  contains(E.calcOut.innerHTML, '(terukur', 'suffix terukur');
+  contains(E.calcOut.innerHTML, 'Iop = <b>2.50</b> pu', 'iop terukur 2.5');
+  contains(E.calcOut.innerHTML, 'Irt = <b>3.75</b> pu', 'irt terukur 3.75');
+  contains(E.calcOut.innerHTML, 'sejati Iop 0.00 / Irt 5.00', 'sejati dicantumkan');
+});
+pub.zeroErrors();
+render();
+check('preview kembali tanpa suffix saat error 0', () => {
+  if (E.calcOut.innerHTML.includes('terukur')) throw new Error('tanpa error tak ada suffix terukur');
+  contains(E.calcOut.innerHTML, 'Iop = <b>0.00</b> pu', 'iop 5/5 = 0');
+});
+
+/* skenario mengatur kartu error & Inrush auto-add titik demo */
+check('runScenario satct → arus sejati 5/5 & ct2=45 (kartu error ikut terisi)', () => {
+  pub.P.err.ct2 = 0;
+  pub.runScenario('satct');
+  if (Math.abs(pub.P.err.ct2 - 45) > 1e-9) throw new Error('ct2 harus 45, dapat ' + pub.P.err.ct2);
+  if (pub.P.err.ct1 !== 0 || pub.P.err.mm !== 0) throw new Error('ct1/mm harus 0');
+  if (E.i1.value !== '5' || E.i2.value !== '5') throw new Error('arus sejati harus 5/5');
+  contains(E.scenHint.innerHTML, 'TRIP PALSU', 'desc skenario di hint panel kiri');
+});
+check('runScenario inrush → isi arus 5/0.05 + auto-add titik demo TRIP', () => {
+  clearPoints();
+  const n = pub.P.points.length;
+  pub.runScenario('inrush');
+  if (pub.P.points.length !== n + 1) throw new Error('harus menambah 1 titik demo');
+  if (E.i1.value !== '5' || Math.abs(parseFloat(E.i2.value) - 0.05) > 1e-9) throw new Error('arus inrush 5/0.05');
+  const pt = pub.P.points[pub.P.points.length - 1];
+  if (Math.abs(pt.i1 - 5) > 1e-9 || Math.abs(pt.i2 - 0.05) > 1e-9) throw new Error('titik demo harus 5/0.05');
+  if (E.verdictLabel.textContent !== 'TRIP') throw new Error('kurva magnitudo → TRIP (pembanding)');
+  contains(E.scenHint.innerHTML, 'harmonik', 'catatan harmonik di hint panel kiri');
+});
+check('runScenario inrush dua kali → titik demo tak diduplikasi', () => {
+  const n = pub.P.points.length;
+  pub.runScenario('inrush');
+  if (pub.P.points.length !== n) throw new Error('titik demo tak boleh diduplikasi');
+});
+
+/* ===== revisi: kartu kanan nilai-langsung (hapus kalimat & kotak edukasi) ===== */
+check('kartu kanan: ringkasan kalimat & edu-note DIHAPUS (markup, css, js)', () => {
+  if (/class="r-sum"|\.r-sum\{|r-sum\)/.test(src)) throw new Error('sisa .r-sum ditemukan');
+  if (src.includes('edu-note')) throw new Error('edu-note masih ada');
+  if (src.includes('renderEdu')) throw new Error('renderEdu masih ada');
+});
+check('kartu kanan: readout berisi baris nilai langsung tanpa kalimat', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null);
+  render();
+  if (E.readout.innerHTML.includes('r-sum')) throw new Error('r-sum masih dirender');
+  if (E.readout.innerHTML.includes('berada di <b>atas</b> ambang')) throw new Error('kalimat ringkasan masih ada');
+  contains(E.readout.innerHTML, '<div class="rgroup-title">Titik uji</div>', 'grup 1');
+  contains(E.readout.innerHTML, '<div class="rgroup-title">Keputusan</div>', 'grup 2');
+  contains(E.readout.innerHTML, '<span>Irt (restraint)</span><span>1.00 pu</span>', 'nilai Irt');
+  contains(E.readout.innerHTML, '<span>Iop (operasi)</span><span>2.00 pu</span>', 'nilai Iop');
+  contains(E.readout.innerHTML, '<span>Ambang kurva</span><span>0.30 pu</span>', 'nilai ambang');
+});
+
+/* ===== fitur: tooltip elemen (hanya yg digambar, dgn margin ±10 px) ===== */
+check('tooltip: markup .tip + id planeTip hadir', () => {
+  contains(src, 'id="planeTip"', 'elemen tooltip');
+  contains(src, '.plane-card .tip', 'css tooltip');
+  contains(src, 'hoverInfo', 'js hoverInfo');
+});
+check('hoverInfo: titik uji (di atas kurva) → kind point + nilai', () => {
+  clearPoints(); zeroErrors();
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  P.pickup = 0.30; P.method = 'average';
+  addPoint('manual', 1.0, 2.0, null, null);
+  render();
+  const map = E.plane._map; if (!map) throw new Error('map tidak ada');
+  const h = pub.hoverInfo(map, 1.0, 2.0);
+  if (!h || h.kind !== 'point') throw new Error('harus kind point, dapat ' + (h && h.kind));
+  contains(h.head, 'TRIP', 'head status');
+  contains(h.rows[0], 'Irt 1.00 pu', 'baris Irt');
+  contains(h.rows[1], 'Iop 2.00 pu', 'baris Iop');
+});
+check('hoverInfo: breakpoint BP1 (2.0, 0.5) → kind bp + slope 25%', () => {
+  const map = E.plane._map;
+  const h = pub.hoverInfo(map, 2.0, 0.5);
+  if (!h || h.kind !== 'bp') throw new Error('harus kind bp, dapat ' + (h && h.kind));
+  contains(h.head, 'Breakpoint 1', 'head bp');
+  if (!h.rows.join('|').includes('slope 25%')) throw new Error('slope 25% harus ada: ' + h.rows);
+});
+check('hoverInfo: kurva ambang di (3, 1.2) → kind curve + ambang 1.15', () => {
+  const map = E.plane._map;
+  const h = pub.hoverInfo(map, 3.0, 1.2);
+  if (!h || h.kind !== 'curve') throw new Error('harus kind curve, dapat ' + (h && h.kind));
+  if (!h.rows.join('|').includes('ambang 1.15 pu')) throw new Error('ambang harus 1.15: ' + h.rows);
+  if (!h.rows.join('|').includes('di atas kurva')) throw new Error('kursor di atas kurva');
+});
+check('hoverInfo: garis pickup (0.5, 0.30) → kind pickup; area kosong → null', () => {
+  const map = E.plane._map;
+  const h = pub.hoverInfo(map, 0.5, 0.30);
+  if (!h || h.kind !== 'pickup') throw new Error('harus kind pickup, dapat ' + (h && h.kind));
+  if (!h.rows.join('|').includes('Iop 0.30 pu')) throw new Error('pickup 0.30: ' + h.rows);
+  const empty = pub.hoverInfo(map, 1.0, 3.5);
+  if (empty) throw new Error('area kosong harus null, dapat ' + empty.kind);
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

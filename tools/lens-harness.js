@@ -51,8 +51,8 @@ function loadSimulator(htmlPath) {
     if (sel.startsWith('#')) return [getEl(sel.slice(1))];
     if (sel.startsWith('.')) {
       const cls = sel.slice(1);
-      if (cls === 'card-h') return ['curve', 'calc'].map(c => makeEl('h-' + c));
-      if (sel === '.card[data-card]') return ['curve', 'calc'].map(c => {
+      if (cls === 'card-h') return ['curve', 'err', 'calc'].map(c => makeEl('h-' + c));
+      if (sel === '.card[data-card]') return ['curve', 'err', 'calc'].map(c => {
         const el = makeEl('card-' + c);
         el.dataset.card = c;
         return el;

@@ -29,15 +29,21 @@ inti tetap berjalan tanpanya.
 - **Kurva karakteristik multi-slope** (maks. 4 segmen): minimum pickup, slope 1..N,
   breakpoint — digambar live, daerah **TRIP** (merah) vs **RESTRAIN** (hijau)
 - **Dua metode restraint**: Average atau Maximum (titik dari kalkulator mengikuti)
-- **Titik uji**: klik langsung di plot / seret untuk memindah, tooltip koordinat +
-  status + margin; atau hitung dari **I1 & I2** lewat kalkulator arus
+- **Titik uji**: klik langsung di plot / seret untuk memindah; atau hitung dari
+  **I1 & I2** lewat kalkulator arus
+- **Tooltip interaktif**: arahkan kursor ke elemen plot (titik uji, marker breakpoint,
+  garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor
+- **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio — titik
+  **sejati vs titik terukur** (keputusan relay selalu pada yang terukur; trip palsu /
+  terlewat ditandai langsung)
 - **Daftar titik uji**: tabel dengan badge status TRIP/RESTRAIN, margin (%), hapus,
   sorot, bersihkan
+- **Kartu kanan nilai-langsung**: kotak status + baris label→nilai + formula KaTeX —
+  tanpa kalimat panjang
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
-  (Normal, Eksternal, Internal, Saturasi CT), animasi sapuan *eksternal → internal*
-  dengan titik berjalan menyeberangi kurva
-- **Peringatan non-blocking** untuk kombinasi tak lazim + **kartu edukasi kontekstual**
-  yang menjelaskan pickup/slope/breakpoint/restraint saat disentuh
+  (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding), animasi sapuan
+  *eksternal → internal* dengan titik berjalan menyeberangi kurva
+- **Peringatan non-blocking** untuk kombinasi tak lazim
 - **Gaya desain "Simulator Distance Relay"**: splash krem, judul animasi, kartu
   collapse, label ber-halo, mode tampilan bahasa Indonesia
 
@@ -52,9 +58,9 @@ inti tetap berjalan tanpanya.
 ## Validasi
 
 ```bash
-node tools/model.test.js       # model: threshold multi-slope, status, margin (25 asersi)
+node tools/model.test.js       # model: threshold multi-slope, status, margin, error CT (42 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI (22 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (46 asersi)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan
