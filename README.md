@@ -32,24 +32,28 @@ inti tetap berjalan tanpanya.
   **pita toleransi AMBANG** (copper) di atas kurva
 - **Dua metode restraint**: Average atau Maximum (titik dari kalkulator mengikuti)
 - **Titik uji**: klik langsung di plot / seret untuk memindah; hitung dari **I1 & I2**
-  lewat kalkulator arus; **klik titik yang sudah ada → I1/I2 termuat & bisa diperbarui**
+  lewat kalkulator arus; **SEMUA titik bisa diedit ulang** (klik titik → I1/I2 termuat
+  → "Perbarui titik #N") — nilai terukur tampil langsung (label `Iop …` di plot +
+  kolom **Sejati** di tabel)
 - **Tooltip interaktif**: arahkan kursor ke elemen plot (titik uji, marker breakpoint,
   garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor
-- **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio — titik
-  **sejati vs titik terukur** (keputusan relay selalu pada yang terukur; trip palsu /
-  terlewat ditandai langsung); default realistis **5%/5%/+10%** (CT 5P + tap) — bukan 0
+- **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio —
+  **SEMUA titik ikut error** (titik klik dibalikkan ke I₁/I₂ sejati → geser error =
+  titik bergeser real-time), titik **sejati vs titik terukur** ditandai langsung;
+  default realistis **5%/5%/+10%** (CT 5P + tap) — bukan 0
 - **Mode pengamatan arus sistem**: sapu arus gangguan eksternal/beban transformator
   `I₁=I₂=I` (0.2–12 pu) dengan error CT aktif — amati apakah titik terukur melewati
   slope saat arus membesar/mengecil; tersedia saturasi CT **dinamis** (error efektif
   membesar di arus tinggi), jejak + sumbu otomatis
 - **Panduan via ikon "?"**: teks petunjuk permanen diganti tooltip saat hover
-- **Daftar titik uji**: tabel dengan badge status TRIP/AMBANG/RESTRAIN, margin (%),
-  hapus, sorot, bersihkan
+- **Daftar titik uji**: tabel Irt/Iop terukur + kolom **Sejati**, badge status
+  TRIP/AMBANG/RESTRAIN, margin (%), hapus, sorot, bersihkan
 - **Kartu kanan nilai-langsung**: kotak status + nilai utama sbg **hero** (Iop dulu,
   tile ber-status: tint + aksen + chip TRIP/AMBANG/RESTRAIN; Irt netral) + formula
   KaTeX — tanpa kalimat panjang; legenda plot sederhana (4 item); scrollbar tipis global
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
-  (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding), animasi sapuan
+  (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding) — dengan titik
+  TERPILIH, skenario dipasang ke titik itu (bergeser real-time); animasi sapuan
   *eksternal → internal* dengan titik berjalan menyeberangi kurva
 - **Peringatan non-blocking** untuk kombinasi tak lazim
 - **Gaya desain "Simulator Distance Relay"**: splash krem, judul animasi, kartu
@@ -66,9 +70,9 @@ inti tetap berjalan tanpanya.
 ## Validasi
 
 ```bash
-node tools/model.test.js       # model: threshold, status, margin, error CT, toleransi, obs (53 asersi)
+node tools/model.test.js       # model: threshold, status, margin, error CT, measuredToTrue, toleransi, obs (60 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + obs (76 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + obs + titik-ikut-error (88 asersi)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```
 

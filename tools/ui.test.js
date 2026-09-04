@@ -315,6 +315,7 @@ check('preview kembali tanpa suffix saat error 0', () => {
 
 /* skenario mengatur kartu error & Inrush auto-add titik demo */
 check('runScenario satct → arus sejati 5/5 & ct2=45 (kartu error ikut terisi)', () => {
+  clearPoints();   // tanpa titik terpilih → mode kalkulator (perilaku lama)
   pub.P.err.ct2 = 0;
   pub.runScenario('satct');
   if (Math.abs(pub.P.err.ct2 - 45) > 1e-9) throw new Error('ct2 harus 45, dapat ' + pub.P.err.ct2);
@@ -337,6 +338,62 @@ check('runScenario inrush dua kali → titik demo tak diduplikasi', () => {
   const n = pub.P.points.length;
   pub.runScenario('inrush');
   if (pub.P.points.length !== n) throw new Error('titik demo tak boleh diduplikasi');
+});
+
+/* ===== fitur: titik manual IKUT model error (klik = terukur, I₁/I₂ sejati
+   dibalikkan), semua titik bisa diedit, skenario dipasang ke titik terpilih,
+   nilai terukur tampil langsung (label plot + kolom Sejati tabel) ===== */
+check('tabel: kolom terukur + kolom Sejati (thead)', () => {
+  contains(src, 'Irt terukur (pu)', 'thead Irt');
+  contains(src, 'Iop terukur (pu)', 'thead Iop');
+  contains(src, '>Sejati</th>', 'thead Sejati');
+});
+check('tabel: titik dgn error → Sejati terisi; tanpa error → —', () => {
+  clearPoints();
+  pub.applyErr(5, 5, 10); render();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  contains(E.ptsBody.innerHTML, '>1.05 / 2.11</td>', 'sejati Irt/Iop di tabel');
+  pub.applyErr(0, 0, 0); render();
+  contains(E.ptsBody.innerHTML, '>—</td>', 'tanpa error: sejati = —');
+});
+check('plot: label terukur di samping titik (data-pt-lbl, Iop 2.00)', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  contains(svg(), 'data-pt-lbl', 'label titik di SVG');
+  contains(svg(), '>Iop 2.00</text>', 'nilai Iop terukur di label');
+});
+check('skenario → titik terpilih: I₁/I₂ titik berubah + error global + tombol normal', () => {
+  clearPoints(); zeroErrors();
+  addPoint('calc', 0, 0, 1, 1); render();
+  selectPoint(P.points[0].id);
+  pub.runScenario('satct');
+  const pt = P.points[0];
+  if (Math.abs(pt.i1 - 5) > 1e-9 || Math.abs(pt.i2 - 5) > 1e-9) throw new Error('titik harus 5/5: ' + pt.i1 + '/' + pt.i2);
+  if (Math.abs(P.err.ct2 - 45) > 1e-9 || P.err.ct1 !== 0 || P.err.mm !== 0) throw new Error('error global satct: ' + JSON.stringify(P.err));
+  if (P.editId != null) throw new Error('editId harus bersih');
+  if (E.addPointBtn.textContent !== 'Tambahkan titik ke plot') throw new Error('tombol normal: ' + E.addPointBtn.textContent);
+  if (E.scenLbl.textContent !== 'Skenario → titik #1') throw new Error('label skenario: ' + E.scenLbl.textContent);
+  const d = evaluatePoint(P, pt);
+  if (d.status !== 'TRIP') throw new Error('satct pada titik → TRIP palsu, dapat ' + d.status);
+});
+check('klik titik MANUAL → mode edit: I₁/I₂ termuat + Perbarui titik #N', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  selectPoint(P.points[0].id);
+  if (E.addPointBtn.textContent !== 'Perbarui titik #1') throw new Error('tombol edit manual: ' + E.addPointBtn.textContent);
+  if (P.editId !== P.points[0].id) throw new Error('editId harus menunjuk titik manual');
+  if (E.i1.value !== '2' || E.i2.value !== '0') throw new Error('I₁/I₂ balikan harus 2/0: ' + E.i1.value + '/' + E.i2.value);
+  E.i1.value = '3'; E.i2.value = '1';
+  pub.commitCalcAdd();
+  if (P.points.length !== 1) throw new Error('harus EDIT bukan tambah: ' + P.points.length);
+  const pt = P.points[0];
+  if (Math.abs(pt.i1 - 3) > 1e-9 || Math.abs(pt.i2 - 1) > 1e-9) throw new Error('titik harus jadi 3/1: ' + pt.i1 + '/' + pt.i2);
+  render();
+});
+check('readout Sumber titik: manual → "Klik pada plot" (bukan Animasi sapuan)', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  contains(E.readout.innerHTML, '<span>Sumber titik</span><span>Klik pada plot</span>', 'sumber manual');
 });
 
 /* ===== revisi: kartu kanan nilai-langsung (hapus kalimat & kotak edukasi) ===== */
@@ -455,7 +512,7 @@ check('scrollbar tipis global: * scrollbar-width + ::-webkit-scrollbar 6px', () 
 check('kartu error: penjelasan hanya via ikon ? — teks panduan permanen hilang', () => {
   contains(src, 'id="errOut"', 'errOut markup');
   if (/class="hint"/.test(src)) throw new Error('masih ada elemen .hint berisi teks permanen');
-  if (!/id="errNoteQ"[^>]*data-tip="[^"]*keputusan di titik terukur/.test(src)) throw new Error('ikon ? harus membawa penjelasan keputusan-di-titik-terukur');
+  if (!/id="errNoteQ"[^>]*data-tip="[^"]*keputusan selalu di titik terukur/.test(src)) throw new Error('ikon ? harus membawa penjelasan keputusan-di-titik-terukur');
   if (src.includes('arus sekunder yang DILIHAT relay mengecil')) throw new Error('paragraf panjang masih ada');
 });
 check('errOut live: ct2=50 → I₂ 5.00 → 2.50 pu; tanpa error → identitas', () => {

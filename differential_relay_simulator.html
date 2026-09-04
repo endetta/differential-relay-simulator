@@ -339,7 +339,7 @@
         </div>
 
         <div class="card" data-card="err">
-          <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="q" id="errNoteQ" data-tip="Error hanya berlaku utk titik dari I₁/I₂ (kalkulator/skenario) — keputusan di titik terukur.">?</span><span class="chev">▾</span></div>
+          <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="q" id="errNoteQ" data-tip="SEMUA titik (klik/seret/kalkulator/skenario) dihitung dari arus SEJATI I₁/I₂ lalu diukur dengan error ini — keputusan selalu di titik terukur.">?</span><span class="chev">▾</span></div>
           <div class="card-b"><div class="card-b-i">
             <div class="field">
               <label><span>Error CT sisi 1 — I₁</span><span class="qline"><span class="q" data-tip="CT sisi 1 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₁ ×(1−e/100). Default 5% = CT kelas 5P.">?</span><b id="errv-ct1">5%</b></span></label>
@@ -379,7 +379,7 @@
             </div>
             <div class="zline" id="calcOut">Iop = 0.60 pu · Irt = 0.90 pu</div>
             <button class="mini-btn hl" id="addPointBtn" style="width:100%;">Tambahkan titik ke plot</button>
-            <div class="curve-label" style="margin-top:11px;display:flex;justify-content:space-between;align-items:center;">Skenario<span class="q" id="scenQ" data-tip="Skenario mengisi I₁ &amp; I₂ (arus sejati) &amp; faktor error — penjelasan tiap skenario muncul di sini.">?</span></div>
+            <div class="curve-label" style="margin-top:11px;display:flex;justify-content:space-between;align-items:center;"><span id="scenLbl">Skenario</span><span class="q" id="scenQ" data-tip="Skenario mengisi I₁ &amp; I₂ (arus sejati) &amp; faktor error. Bila ada titik TERPILIH, skenario dipasang KE titik itu (I₁/I₂-nya diubah, error global) — titik bergeser real-time; tanpa titik, mengisi kalkulator.">?</span></div>
             <div class="btngroup" id="scenarioGroup">
               <button data-v="normal">Normal</button>
               <button data-v="external">Eksternal</button>
@@ -445,7 +445,7 @@
         </div>
         <div class="table-wrap">
           <table class="ptab">
-            <thead><tr><th>No</th><th>Sumber</th><th class="num">Irt (pu)</th><th class="num">Iop (pu)</th><th>Status</th><th class="num">Margin</th><th></th></tr></thead>
+            <thead><tr><th>No</th><th>Sumber</th><th class="num">Irt terukur (pu)</th><th class="num">Iop terukur (pu)</th><th class="num" title="Irt / Iop SEJATI tanpa error CT — tampil bila titik bergeser">Sejati</th><th>Status</th><th class="num">Margin</th><th></th></tr></thead>
             <tbody id="ptsBody"></tbody>
           </table>
         </div>
@@ -697,6 +697,22 @@ function measuredPair(i1,i2,err){
   const mm=clamp(Number(err.mm)||0,-30,30);
   return { i1m:Math.max(0,i1*(1-c1/100)), i2m:Math.max(0,i2*(1-c2/100)*(1+mm/100)) };
 }
+/* Invers EKSAK dari rantai terukur: posisi TERUKUR (irt,iop) + metode + error → arus
+   SEJATI (i1,i2) yang menghasilkannya. Dipakai saat KLIK/SERET titik manual: titik
+   selalu didefinisikan oleh arus sejati, jadi perubahan error menggeser posisi
+   terukurnya real-time (dan kembali TEPAT ke posisi klik saat error belum berubah).
+   Daerah iop > 2·irt (average) / iop > irt (maximum) mustahil secara fisis
+   (iop=|I1−I2| ≤ I1+I2 = 2·irt; iop ≤ max = irt) → I2 dipatok 0 (titik duduk di batas). */
+function measuredToTrue(irt,iop,method,err){
+  err=err||ERR0;
+  const c1=clamp(Number(err.ct1)||0,0,95);
+  const c2=clamp(Number(err.ct2)||0,0,95);
+  const mm=clamp(Number(err.mm)||0,-30,30);
+  let i1m,i2m;
+  if(method==='maximum'){ i1m=Math.max(0,irt); i2m=Math.max(0,irt-iop); }
+  else { i1m=Math.max(0,irt+iop/2); i2m=Math.max(0,irt-iop/2); }
+  return { i1:i1m/(1-c1/100), i2:i2m/((1-c2/100)*(1+mm/100)) };
+}
 /* ===== mode pengamatan arus sistem (through-sweep I₁=I₂=I) — murni & diuji.
    Error proporsional statis: titik terukur bergerak LURUS (rasio Iop/Irt konstan dlm
    satu segmen slope) → arus besar TIDAK mendekatkan trip. Saturasi DINAMIS (opsional):
@@ -875,25 +891,30 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
 }));
 
 /* ---------- titik uji ----------
-   Titik menyimpan INPUT saja: manual → {irt,iop} hasil klik/seret;
-   'calc' → {i1,i2} (koordinat Irt/Iop diturunkan dari metode restraint saat
-   render via evaluatePoint). thr/status/margin TIDAK pernah disimpan. */
+   Titik menyimpan INPUT saja: SEMUA titik kini membawa arus SEJATI {i1,i2}.
+   'calc' → i1/i2 dari kalkulator/skenario; 'manual' (klik/seret) → posisi klik
+   adalah TERUKUR, lalu measuredToTrue membalikkan I₁/I₂ sejati yang menghasilkannya
+   → perubahan error menggeser titik real-time. thr/status/margin TIDAK disimpan. */
 function addPoint(source,irt,iop,i1,i2){
   const pt={id:uid++,source,irt,iop,i1:null,i2:null};
   if(source==='calc'){ pt.i1=i1; pt.i2=i2; }
+  else { const t=measuredToTrue(irt,iop,P.method,P.err); pt.i1=t.i1; pt.i2=t.i2; }
   P.points.push(pt);
   P.selectedId=pt.id;
-  selectPoint(pt.id);
+  if(source==='calc') selectPoint(pt.id);   // titik kalkulator: langsung siap diedit
+  else { P.editId=null; syncScenLabel(); render(); }  // titik baru dari plot: TANPA mode edit
 }
 function removePoint(id){ P.points=P.points.filter(p=>p.id!==id);
   if(P.selectedId===id) P.selectedId=null;
   if(P.editId===id){ P.editId=null; const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot'; }  // audit B3
+  syncScenLabel();
   render(); }
 function clearPoints(){ P.points=[]; P.selectedId=null; P.editId=null; P.probe=null; P.probeTrace=null;
   P.obs.on=false; P.obs.play=false;
   if(obsTimer){ clearInterval(obsTimer); obsTimer=null; }
   stopAnim($('animateBtn'));        // animasi sapuan ikut berhenti (audit B1)
   const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot';
+  syncScenLabel();
   render(); }
 $('clearPoints').addEventListener('click',clearPoints);
 
@@ -925,10 +946,11 @@ function commitCalcAdd(){
   if(!Number.isFinite(i1)||!Number.isFinite(i2)) return;
   const a1=Math.max(0,i1), a2=Math.max(0,i2);
   const ed=P.editId!=null?P.points.find(p=>p.id===P.editId):null;
-  if(ed&&ed.source==='calc'){ ed.i1=a1; ed.i2=a2; }        // perbarui titik yang dipilih
+  if(ed){ ed.i1=a1; ed.i2=a2; }               // perbarui titik yang dipilih (SEMUA titik)
   else addPoint('calc',irtOf(a1,a2,P.method),iopOf(a1,a2),a1,a2);  // tambah baru
   P.editId=null;
   const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot';
+  syncScenLabel();
   render();
 }
 $('addPointBtn').addEventListener('click',commitCalcAdd);
@@ -968,16 +990,26 @@ bindErr('ct1',0,95);
 bindErr('ct2',0,95);
 bindErr('mm',-30,30);
 $('errReset').addEventListener('click',zeroErrors);
-/* skenario: isi I1/I2 (arus SEJATI) + faktor error; penjelasan → hint singkat di
-   bawah tombol skenario (panel kiri); Inrush auto-add titik demo. */
+/* skenario DUA MODE: tanpa titik terpilih → isi Kalkulator (I₁/I₂ SEJATI + error,
+   Inrush auto-add titik demo); DENGAN titik terpilih → skenario DIPASANG KE titik
+   itu (I₁/I₂ sejatinya diubah + error global) — titik bergeser real-time dan nilai
+   terukurnya langsung terlihat. Label 'Skenario → titik #N' menandai mode ini. */
 function runScenario(key){
   const sc=SCENARIOS[key]; if(!sc) return;
   applyErr(sc.err.ct1,sc.err.ct2,sc.err.mm);
-  $('i1').value=String(sc.i1); $('i2').value=String(sc.i2);
-  P.i1=sc.i1; P.i2=sc.i2;
-  if(sc.autoAdd){
-    const dupe=P.points.some(p=>p.source==='calc'&&Math.abs((p.i1||0)-sc.i1)<1e-9&&Math.abs((p.i2||0)-sc.i2)<1e-9);
-    if(!dupe) addPoint('calc',0,0,sc.i1,sc.i2);
+  const sel=P.selectedId!=null?P.points.find(p=>p.id===P.selectedId):null;
+  if(sel){
+    sel.i1=sc.i1; sel.i2=sc.i2;
+    P.editId=null;
+    const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot';
+    syncScenLabel();
+  } else {
+    $('i1').value=String(sc.i1); $('i2').value=String(sc.i2);
+    P.i1=sc.i1; P.i2=sc.i2;
+    if(sc.autoAdd){
+      const dupe=P.points.some(p=>p.source==='calc'&&Math.abs((p.i1||0)-sc.i1)<1e-9&&Math.abs((p.i2||0)-sc.i2)<1e-9);
+      if(!dupe) addPoint('calc',0,0,sc.i1,sc.i2);
+    }
   }
   const sq=$('scenQ');
   if(sq) sq.dataset.tip=sc.desc;  // deskripsi skenario → tooltip ikon ? (bukan teks permanen)
@@ -1066,7 +1098,7 @@ function startAnim(){
     if(t>=1){ stopAnim(btn); return; }
     const ease=t*t*(3-2*t);                 // smoothstep 0..1
     const I2=I1*(1-ease);                   // I2: dari I1 (eksternal/matching) → 0 (internal)
-    P.probe={i1:I1,i2:I2};          // koordinat & status diturunkan evaluatePoint
+    P.probe={i1:I1,i2:I2,source:'probe'};   // koordinat & status diturunkan evaluatePoint
     /* jejak di bidang TERUKUR (keputusan): error CT ikut menggesernya */
     const {i1m,i2m}=measuredPair(I1,I2,P.err);
     const iop=iopOf(i1m,i2m), irt=irtOf(i1m,i2m,P.method);
@@ -1204,8 +1236,11 @@ function renderPlane(){
     const sel=pt.id===P.selectedId;
     const d=evaluatePoint(m,pt);
     const col=stCol(d.status);
+    /* nilai TERUKUR tampil langsung di samping titik (label halo, warna status) */
     return `<circle cx="${Xx(d.irt).toFixed(2)}" cy="${Yy(d.iop).toFixed(2)}" r="${sel?7:5.5}" fill="${col}"
-      stroke="${sel?'var(--ink)':'var(--surface)'}" stroke-width="${sel?2.5:1.6}" data-point="${pt.id}"/>`;
+      stroke="${sel?'var(--ink)':'var(--surface)'}" stroke-width="${sel?2.5:1.6}" data-point="${pt.id}"/>
+      <text x="${(Xx(d.irt)+7).toFixed(2)}" y="${(Yy(d.iop)-8).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9.5" font-weight="600" fill="${col}"
+        paint-order="stroke" stroke="var(--surface)" stroke-width="3" data-pt-lbl="${pt.id}">Iop ${fmt(d.iop)}</text>`;
   };
   let ptsStr=P.points.map(ptSvg).join('');
   if(P.probe){
@@ -1278,8 +1313,7 @@ plane.addEventListener('pointerdown',e=>{
   if(c){
     const pt=P.points.find(p=>p.id===Number(c.dataset.point));
     selectPoint(pt?pt.id:null);
-    /* hanya titik MANUAL yang bisa diseret — titik 'Dari arus' terpaku pd I1/I2
-       (koordinatnya diturunkan, mutasi manual akan diabaikan evaluatePoint) */
+    /* hanya titik MANUAL yang bisa diseret — titik kalkulator terpaku pd I1/I2 */
     if(pt&&pt.source==='manual') dragId=pt.id;
     e.preventDefault(); return;
   }
@@ -1292,7 +1326,10 @@ window.addEventListener('pointermove',e=>{
   if(dragId==null) return;
   const pt=P.points.find(p=>p.id===dragId); if(!pt) return;
   const pos=pointerToPu(e);
-  if(pos){ pt.irt=round2(pos.irt); pt.iop=round2(pos.iop); render(); }
+  if(pos){ pt.irt=round2(pos.irt); pt.iop=round2(pos.iop);
+    /* seret = pasang posisi TERUKUR baru → balikkan I₁/I₂ sejati (ikut error kini) */
+    const t=measuredToTrue(pt.irt,pt.iop,P.method,P.err); pt.i1=t.i1; pt.i2=t.i2;
+    render(); }
 });
 window.addEventListener('pointerup',()=>{ dragId=null; });
 
@@ -1305,6 +1342,7 @@ const SKEL_ROW=`<tr class="skel" aria-hidden="true">
       <td><span class="sk-bar" style="width:62px"></span></td>
       <td class="num"><span class="sk-bar" style="width:34px"></span></td>
       <td class="num"><span class="sk-bar" style="width:34px"></span></td>
+      <td class="num"><span class="sk-bar" style="width:44px"></span></td>
       <td><span class="sk-bar" style="width:56px"></span></td>
       <td class="num"><span class="sk-bar" style="width:44px"></span></td>
       <td></td></tr>`;
@@ -1319,6 +1357,7 @@ function renderTable(){
       return `<tr class="${sel?sel.trim():''}" data-row="${pt.id}">
         <td>${i+1}</td><td>${src}</td>
         <td class="num">${fmt(d.irt)}</td><td class="num">${fmt(d.iop)}</td>
+        <td class="num">${d.hasErr?fmt(d.irtTrue)+' / '+fmt(d.iopTrue):'—'}</td>
         <td><span class="badge ${d.status}">${d.status}</span></td>
         <td class="num">${fmtSign(d.margin)}</td>
         <td><button class="rowdel" data-del="${pt.id}" aria-label="Hapus titik ${i+1}">✕</button></td>
@@ -1369,9 +1408,9 @@ function renderSide(){
     const fromI=selPt.i1!=null&&selPt.i2!=null;
     const obsMode=P.obs&&P.obs.on&&selPt.source==='obs';
     const srcTxt=obsMode?'Arus sistem (I₁=I₂=I)'
-      : ((selPt.source==='calc'||selPt.source==='probe')
-      ? (fromI?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
-      : (fromI?'Animasi sapuan':'Klik pada plot'));
+      : selPt.source==='manual'?'Klik pada plot'        // titik manual: dari klik (I₁/I₂ = balikan)
+      : selPt.source==='probe'?'Animasi sapuan'
+      : fromI?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus';
     /* hero Iop/Irt — dua nilai utama DITONJOLKAN; Iop (nilai keputusan) tampil lebih dulu,
        tile-nya berstatus (tint + aksen + chip), Irt netral sbg pembanding */
     const tolOn=(Number(P.tol)||0)>0;
@@ -1418,11 +1457,17 @@ function renderSide(){
     fo.style.display='none'; fo.innerHTML='';
   }
 }
-/* klik titik (tabel/plot) → muat I₁/I₂-nya ke Kalkulator arus bila titik 'calc';
-   tombol jadi 'Perbarui titik #N'. Titik manual tak punya I₁/I₂ → tak bisa diedit. */
+/* klik titik (tabel/plot) → muat I₁/I₂-nya ke Kalkulator arus (SEMUA titik kini
+   membawa I₁/I₂ — manual hasil balikan measuredToTrue); tombol jadi 'Perbarui titik
+   #N'. Label skenario ikut berubah jadi 'Skenario → titik #N'. */
+function syncScenLabel(){
+  const pt=P.selectedId!=null?P.points.find(p=>p.id===P.selectedId):null;
+  const sl=$('scenLbl');
+  if(sl) sl.textContent=pt?('Skenario → titik #'+(P.points.indexOf(pt)+1)):'Skenario';
+}
 function editPoint(id){
   const pt=id!=null?P.points.find(p=>p.id===id):null;
-  const editable=pt&&pt.source==='calc'&&pt.i1!=null&&pt.i2!=null;
+  const editable=!!(pt&&pt.i1!=null&&pt.i2!=null);
   P.editId=editable?pt.id:null;
   const cb=$('addPointBtn');
   if(editable&&cb){
@@ -1431,6 +1476,7 @@ function editPoint(id){
   } else if(cb){
     cb.textContent='Tambahkan titik ke plot';
   }
+  syncScenLabel();
 }
 function selectPoint(id){
   P.selectedId=P.points.some(p=>p.id===id)?id:null;
@@ -1626,7 +1672,7 @@ syncCollapsedCentering();
    ========================================================= */
 const API={
   render, S, P,
-  thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair,
+  thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair, measuredToTrue,
   satFactor, obsEff, obsPath,
   computeDomain, curveSample, slopeLine,
   slopeList, SL,

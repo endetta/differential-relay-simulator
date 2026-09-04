@@ -17,7 +17,7 @@ function approx(act, exp, tol, ctx) {
 }
 
 const ctx = loadSimulator(HTML);
-const { iopOf, irtOf, slopeLine, thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, evaluatePoint, measuredPair, computeDomain, satFactor, obsEff, obsPath, render } = ctx.pub;
+const { iopOf, irtOf, slopeLine, thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, evaluatePoint, measuredPair, measuredToTrue, computeDomain, satFactor, obsEff, obsPath, render } = ctx.pub;
 
 /* Konfigurasi default PRD §5.5: pickup 0.30, s1 25% @ 2.0, s2 65% → ∞ */
 const M = { pickup: 0.30, method: 'average', slopes: [
@@ -190,11 +190,59 @@ check('evaluatePoint under-reach: internal 2/0 + ct1=90 → relay RESTRAIN, seja
   if (d.trueStatus !== 'TRIP') throw new Error('kondisi sejati TRIP (Iop 2)');
   approx(d.margin, -33.3333, 1e-3, 'margin (0.2−0.3)/0.3');
 });
-check('evaluatePoint manual tak terpengaruh error (hasErr false)', () => {
+check('evaluatePoint objek {irt,iop} MURNI (tanpa i1/i2) = bidang terukur, hasErr false', () => {
+  /* bentuk legacy/mentah: koordinat sudah TERUKUR, tak ada i1/i2 utk diturunkan.
+     Titik yang DIBUAT via addPoint('manual') kini membawa i1/i2 hasil balikan
+     measuredToTrue → justru IKUT model error (lihat tes di bawah). */
   const d = evaluatePoint(E5, { irt: 1, iop: 2 });
-  if (d.hasErr) throw new Error('titik manual = bidang terukur, tanpa pergeseran');
+  if (d.hasErr) throw new Error('objek {irt,iop} = bidang terukur, tanpa pergeseran');
   approx(d.irtTrue, 1, 1e-9, 'irtTrue = irt'); approx(d.iopTrue, 2, 1e-9, 'iopTrue = iop');
   if (d.status !== 'TRIP') throw new Error('harus TRIP');
+});
+
+/* ===== fitur: titik manual IKUT model error — klik = posisi TERUKUR; I₁/I₂ sejati
+   dibalikkan via measuredToTrue → perubahan error menggeser titik real-time ===== */
+check('measuredToTrue tanpa error = balikan persis (average: 1/2 → I₁ 2, I₂ 0)', () => {
+  const t = measuredToTrue(1, 2, 'average', { ct1: 0, ct2: 0, mm: 0 });
+  approx(t.i1, 2, 1e-9, 'i1'); approx(t.i2, 0, 1e-9, 'i2');
+});
+check('measuredToTrue maximum: (0.3, 0.05) → I₁ 0.3, I₂ 0.25', () => {
+  const t = measuredToTrue(0.3, 0.05, 'maximum', { ct1: 0, ct2: 0, mm: 0 });
+  approx(t.i1, 0.3, 1e-9, 'i1'); approx(t.i2, 0.25, 1e-9, 'i2');
+});
+check('measuredToTrue dgn error 5/5/+10: I₁ = 2/0.95 = 2.1053 (average 1/2)', () => {
+  const t = measuredToTrue(1, 2, 'average', { ct1: 5, ct2: 5, mm: 10 });
+  approx(t.i1, 2.105263, 1e-4, 'i1'); approx(t.i2, 0, 1e-9, 'i2');
+});
+check('measuredToTrue round-trip: balikan lalu maju → koordinat terukur kembali (avg, err acak)', () => {
+  const err = { ct1: 20, ct2: 50, mm: -10 };
+  const t = measuredToTrue(3.0, 1.5, 'average', err);
+  const f = measuredPair(t.i1, t.i2, err);
+  approx(irtOf(f.i1m, f.i2m, 'average'), 3.0, 1e-9, 'irt roundtrip');
+  approx(iopOf(f.i1m, f.i2m), 1.5, 1e-9, 'iop roundtrip');
+});
+check('measuredToTrue patok batas fisis: iop > 2·irt (average) → i2=0, iop′ = 2·irt′', () => {
+  const t = measuredToTrue(0.5, 3, 'average', { ct1: 0, ct2: 0, mm: 0 });
+  approx(t.i1, 2, 1e-9, 'i1'); approx(t.i2, 0, 1e-9, 'i2');
+  const f = measuredPair(t.i1, t.i2, { ct1: 0, ct2: 0, mm: 0 });
+  approx(irtOf(f.i1m, f.i2m, 'average'), 1, 1e-9, 'irt setelah patok');
+  approx(iopOf(f.i1m, f.i2m), 2, 1e-9, 'iop setelah patok');
+});
+check('evaluatePoint titik manual (I₁/I₂ dibalikkan) → posisi terukur TETAP + sejati bergeser', () => {
+  const ME = { ...M, err: { ct1: 5, ct2: 5, mm: 10 } };
+  const t = measuredToTrue(1, 2, 'average', ME.err);
+  const d = evaluatePoint(ME, { irt: 1, iop: 2, i1: t.i1, i2: t.i2 });
+  approx(d.irt, 1, 1e-9, 'irt terukur'); approx(d.iop, 2, 1e-9, 'iop terukur');
+  approx(d.irtTrue, 1.0526, 1e-3, 'irt sejati'); approx(d.iopTrue, 2.1053, 1e-3, 'iop sejati');
+  if (!d.hasErr) throw new Error('harus hasErr');
+});
+check('real-time: ubah error → titik manual bergeser (tanpa menyentuh titik)', () => {
+  const t = measuredToTrue(1, 2, 'average', { ct1: 5, ct2: 5, mm: 10 });
+  const d1 = evaluatePoint({ ...M, err: { ct1: 5, ct2: 5, mm: 10 } }, { i1: t.i1, i2: t.i2 });
+  const d2 = evaluatePoint({ ...M, err: { ct1: 50, ct2: 5, mm: 10 } }, { i1: t.i1, i2: t.i2 });
+  approx(d1.iop, 2, 1e-9, 'iop awal (terukur tetap 2)');
+  approx(d2.iop, 1.0526, 1e-3, 'iop setelah ct1=50 (I₁ 2.105·0.5)');
+  if (d2.status !== 'TRIP') throw new Error('masih TRIP (di atas pickup)');
 });
 
 /* ===== fitur: toleransi ambang SIMETRIS (pita di kedua sisi kurva; 3 status) =====

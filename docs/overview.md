@@ -37,9 +37,12 @@ menghitung titik dari arus dua sisi (I1, I2).
   heading/label terkait (`.qrow` yatim dihapus); **pita toleransi ambang SIMETRIS**
   (slider `tol`, keputusan 3 status TRIP/AMBANG/RESTRAIN, pita copper `data-band`
   kedua sisi kurva `kurva×(1±tol/100)` + garis batas `data-band-low`/`data-band-top`);
-  **titik kalkulator bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`);
-  **mode pengamatan arus sistem** (sweep through-current + saturasi dinamis, kartu
-  ke-4); **default error CT non-nol** (5%/5%/+10% = CT 5P + tap, bukan 0).
+  **SEMUA titik bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`);
+  **skenario → titik terpilih** (Saturasi CT dsb. dipasang ke titik itu, bergeser
+  real-time); **nilai terukur tampil langsung** (label `Iop …` di plot + kolom
+  `Sejati` tabel); **mode pengamatan arus sistem** (sweep through-current + saturasi
+  dinamis, kartu ke-4); **default error CT non-nol** (5%/5%/+10% = CT 5P + tap, bukan
+  0).
 
 ## Menjalankan
 
@@ -62,9 +65,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `CLAUDE.md` | Panduan arsitektur/konvensi untuk agen coding. |
 | `README.md` | Deskripsi publik + cara menjalankan + validasi. |
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
-| `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status + obs, 53 asersi). `node tools/model.test.js`. |
+| `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + measuredToTrue + toleransi 3-status + obs, 60 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (76 asersi). `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (88 asersi). `node tools/ui.test.js`. |
 | `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
@@ -87,23 +90,25 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
      titik sampel agar kurva tidak membulat di sambungan).
    - `measuredPair(i1,i2,err)` — arus yang DILIHAT relay setelah faktor kesalahan:
      `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct = saturasi/rasio sisi,
-     0..95%; mm = mismatch rasio ±30% pd I₂). Error hanya menggeser titik ber-I1/I2
-     (kalkulator/skenario/probe); titik manual sudah di bidang terukur. **Default err
-     NON-NOL** (`DEFAULT_ERR` 5%/5%/+10% = CT 5P + offset rasio/tap).
+     0..95%; mm = mismatch rasio ±30% pd I₂). **`measuredToTrue(irt,iop,method,err)`
+     = invers eksak** → SEMUA titik (manual maupun kalkulator/skenario/probe) membawa
+     arus SEJATI `i1/i2`: klik/seret = pasang posisi TERUKUR, lalu I₁/I₂ dibalikkan
+     → error CT ikut menggeser titik manual real-time. **Default err NON-NOL**
+     (`DEFAULT_ERR` 5%/5%/+10% = CT 5P + offset rasio/tap).
    - Mode pengamatan & saturasi dinamis (murni): `satFactor(i,knee,gain)` (faktor ct
      efektif: 1 di bawah knee, linier → gain di 3·knee), `obsEff(m,I)` (pasangan
      terukur + `ct1Eff/ct2Eff` utk arus sistem I; dyn ON = ct×faktor),
      `obsPath(m,I)` (jejak measured 0.2→I). Titik pengamatan `{i1:I,i2:I,obsI:I}` →
      `evaluatePoint` menghitung terukur via `obsEff(m,obsI)` — tak basi thd perubahan
      err/metode.
-   - `evaluatePoint(m,pt)` — evaluasi DERIVED satu titik thd kurva kini: titik manual
-     memakai `{irt,iop}` simpanannya, titik `'calc'`/probe menurunkan koordinat dari
-     pasangan TERUKUR `measuredPair` + metode restraint. Hasil
-     `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,trueStatus}` —
-     keputusan selalu di titik TERUKUR; koordinat/status SEJATI dilaporkan untuk ghost
-     & baris "Sejati/Status sejati". Objek `m` sintetis tanpa `err` → dianggap 0 (literal
-     model bebas error). Dipakai renderPlane/renderTable/renderSide/tooltip (diuji
-     model.test.js).
+   - `evaluatePoint(m,pt)` — evaluasi DERIVED satu titik thd kurva kini: SEMUA titik
+     menurunkan koordinat dari pasangan TERUKUR `measuredPair` (atau `obsEff` utk
+     pengamatan) + metode restraint; objek mentah `{irt,iop}` tanpa `i1/i2` tetap
+     dianggap sudah terukur. Hasil `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,
+     status,margin,trueStatus}` — keputusan selalu di titik TERUKUR; koordinat/status
+     SEJATI dilaporkan untuk ghost & baris/kolom "Sejati". Objek `m` sintetis tanpa
+     `err` → dianggap 0 (literal model bebas error). Dipakai
+     renderPlane/renderTable/renderSide/tooltip (diuji model.test.js).
    - `hoverInfo(map,irt,iop)` — tooltip murni: hanya ELEMEN yang digambar (titik
      uji/probe, marker BP, garis pickup, kurva ambang), masing-masing dgn margin ±10 px
      data; → `{kind,head,rows}` atau `null`. Titik memuat baris `margin %` (atau
@@ -151,9 +156,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 - **Ekspor utk tes = `const API` di akhir script** — harness hanya menambahkan
   `;global.__pub=API;`; jangan duplikasi daftar fungsi di `tools/lens-harness.js`.
 - **Status titik DERIVED via `evaluatePoint(m,pt)`** — titik menyimpan input saja
-  (manual: `{irt,iop}` klik/seret; `'calc'`: `{i1,i2}` yang koordinatnya mengikuti
-  metode restraint). `thr/status/margin` dihitung tiap render, tidak pernah disimpan →
-  status titik tak mungkin basi terhadap perubahan kurva.
+  (SEMUA titik membawa arus SEJATI `{i1,i2}`; manual dibalikkan dari posisi klik via
+  `measuredToTrue`). `thr/status/margin` dihitung tiap render, tidak pernah disimpan →
+  status titik tak mungkin basi terhadap perubahan kurva/error.
 - **Dekorasi SVG tidak menangkap pointer**: `#plane line/polygon/polyline/text` dan
   ghost `circle[data-true-point]` ber-`pointer-events:none` — kalau dihapus, klik
   "tambah titik" tidak akan kena kecuali tepat di kotak latar `[data-plot-bg]`.
@@ -162,10 +167,10 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
   dibuat 1 kalimat singkat. Hint metode/formula tanpa kalimat penjelas.
 - **Scrollbar tipis global** lewat `*{scrollbar-width:thin…}` + `*::-webkit-*` 6px —
   jangan mengembalikan scrollbar bawaan browser.
-- **Error CT hanya memengaruhi titik ber-I1/I2** (kalkulator/skenario/probe); titik
-  klik di plot sudah di bidang terukur — itulah kenapa tanpa titik dari kalkulator
-  slider error tampak "tidak mengubah apa-apa". Bukti visual: `#errOut` + ghost titik
-  sejati + preview `(terukur …)`.
+- **SEMUA titik ikut error CT** (kalkulator/skenario/probe/manual): titik manual
+  dibalikkan ke I₁/I₂ sejati saat klik/seret, jadi geser slider error = titik bergeser
+  real-time. Bukti visual: `#errOut`, ghost titik sejati, kolom `Sejati` tabel, label
+  `Iop …` di plot, preview `(terukur …)`.
 - Elemen yang bisa diklik plot: lingkaran titik (`[data-point]`) dan latar
   (`[data-plot-bg]`).
 - Warna/teks semua lewat variabel `:root` / class; label SVG memakai halo
@@ -184,9 +189,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ## Validasi (tanpa build)
 
 ```bash
-node tools/model.test.js       # 53 asersi literals model (PRD §5 + error + toleransi + obs)
+node tools/model.test.js       # 60 asersi literals model (PRD §5 + error + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 76 asersi seam desain + perilaku UI (hoverInfo, legend,
+node tools/ui.test.js          # 88 asersi seam desain + perilaku UI (hoverInfo, legend,
                                #    errOut, tooltip .show, scrollbar, collapse 4 kartu, obs)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```

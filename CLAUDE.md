@@ -39,9 +39,9 @@ Buka `.html` langsung di browser (`file:///...`), atau static server
 Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 
 ```bash
-node tools/model.test.js       # 53 asersi literals model murni (PRD §5 + error CT + toleransi + obs)
+node tools/model.test.js       # 60 asersi literals model murni (PRD §5 + error CT + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 76 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 88 asersi seam desain & perilaku UI (incl. titik-ikut-error)
 ```
 
 **Melihat UI tanpa membuka browser** — `node tools/shoot.js` (tanpa dependensi, CDP
@@ -77,8 +77,10 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    `DEFAULT_ERR={ct1:5,ct2:5,mm:10}` (CT 5P + offset rasio/tap, BUKAN 0; `zeroErrors()`
    untuk menolkan), `tol` = pita toleransi ambang % (default 10), `obs` =
    `{on,I,dyn,knee,gain,play}` (mode pengamatan arus sistem), `points[]`
-   (`{id,source:'manual'|'calc',irt,iop,i1,i2}`), `selectedId`, `editId` (titik 'calc'
-   yg sedang diedit via kalkulator), `probe`/`probeTrace` (animasi). `S.ui.collapsed`
+   (`{id,source:'manual'|'calc',irt,iop,i1,i2}` — SEMUA titik membawa i1/i2 SEJATI;
+   manual hasil balikan `measuredToTrue`), `selectedId`, `editId` (titik yg sedang
+   diedit via kalkulator — berlaku utk SEMUA titik), `probe`/`probeTrace` (animasi,
+   `source:'probe'`). `S.ui.collapsed`
    (curve/err/calc/obs). Semua kontrol menulis ke `S`; tidak ada state lain.
 3. **Model murni** — `iopOf`, `irtOf`, `slopeLine` (kumulatif), `thresholdAt
    = max(pickup, slopeLine)`, `thresholdTol`/`thresholdLow = kurva×(1±tol/100)`
@@ -91,12 +93,16 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    memakai `m={pickup,method,slopes}` supaya bisa diuji dengan objek sintetis.
    **Faktor kesalahan pengukuran** (di luar PRD §5): `measuredPair(i1,i2,err)` = arus
    yang DILIHAT relay — `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct
-   saturasi 0..95% mengecilkan; mm mismatch ±30% faktor pada I₂). `evaluatePoint` untuk
-   titik `i1/i2` memakai pasangan TERUKUR ini sebagai keputusan, dan melaporkan juga
-   koordinat sejati: `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,
-   trueStatus}` (`hasErr` = koordinat bergeser). **Default `err` = `DEFAULT_ERR`
-   (5%/5%/+10%)** — objek `m` sintetis TANPA `err` dianggap `ERR0` (0) agar literal
-   model tetap bebas error.
+   saturasi 0..95% mengecilkan; mm mismatch ±30% faktor pada I₂). **`measuredToTrue(irt,
+   iop,method,err)` = invers eksak**: posisi TERUKUR → arus SEJATI `{i1,i2}` yang
+   menghasilkannya (daerah iop>2·irt avg / iop>irt max mustahil fisis → I2 dipatok 0).
+   **SEMUA titik kini membawa `i1/i2`** (manual dibalikkan saat klik/seret) → error
+   ikut memengaruhi titik manual: geser slider error = titik bergeser real-time.
+   `evaluatePoint` utk titik `i1/i2` memakai pasangan TERUKUR ini sebagai keputusan,
+   dan melaporkan juga koordinat sejati: `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,
+   status,margin,trueStatus}` (`hasErr` = koordinat bergeser). **Default `err` =
+   `DEFAULT_ERR` (5%/5%/+10%)** — objek `m` sintetis TANPA `err` dianggap `ERR0` (0)
+   agar literal model tetap bebas error.
    **Mode pengamatan arus sistem** (through-sweep `I₁=I₂=I`, eksklusif dgn animasi):
    `satFactor(i,knee,gain)` = faktor saturasi dinamis (1 di bawah knee, linier ke gain
    di 3·knee); `obsEff(m,I)` = pasangan terukur + `ct1Eff/ct2Eff` utk arus sistem I
@@ -174,10 +180,12 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   perintah modul lalu `render()`. Melewati modul (mutasi `P.slopes` langsung) = di luar
   kontrak — state bisa jadi ilegal.
 - **Status titik DERIVED, jangan disimpan di objek titik.** `evaluatePoint(m, pt)`
-  menghitung `{irt,iop,thr,status,margin}` thd kurva saat ini; titik manual menyimpan
-  `{irt,iop}` hasil klik/seret, titik `'calc'` menyimpan `{i1,i2}` (koordinat mengikuti
-  metode restraint). Karena tak pernah ditulis, status tidak mungkin basi — jangan
-  memperkenalkan kembali field cache `thr/status/margin` pada titik.
+  menghitung `{irt,iop,thr,status,margin}` thd kurva saat ini; SEMUA titik menyimpan
+  arus SEJATI `{i1,i2}` — klik/seret manual membalikkannya via `measuredToTrue`
+  (posisi klik = TERUKUR), titik kalkulator/skenario dari input langsung. Karena tak
+  pernah ditulis, status tidak mungkin basi — jangan memperkenalkan kembali field
+  cache `thr/status/margin` pada titik. Konsekuensi: error CT ikut menggeser titik
+  manual; jangan "perbaiki" dengan menyimpan koordinat terukur tetap.
 - **`pointer-events` SVG**: line/polygon/polyline/text diberi `pointer-events:none`
   (CSS `#plane …{pointer-events:none}`) agar klik/seret hanya kena lingkaran titik
   (`[data-point]`) atau kotak latar `[data-plot-bg]`. Jangan hapus.

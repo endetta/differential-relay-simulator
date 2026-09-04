@@ -167,7 +167,7 @@ Sumber acuan konsep (bukan untuk dikutip literal di UI, hanya dasar kebenaran te
 - Tombol "Tambahkan ke Plot".
 
 ### 6.4 Daftar Titik Uji (tabel)
-- Semua titik (manual maupun dari kalkulator) muncul di tabel: No, Sumber, Irt, Iop, Status (badge TRIP/RESTRAIN berwarna), Margin (%).
+- Semua titik (manual maupun dari kalkulator) muncul di tabel: No, Sumber, Irt terukur, Iop terukur, Sejati (Irt/Iop tanpa error, "—" bila tak bergeser), Status (badge TRIP/AMBANG/RESTRAIN berwarna), Margin (%).
 - Aksi per baris: hapus, sorot di plot (highlight on hover row ↔ highlight point).
 - Tombol "Bersihkan semua titik".
 
