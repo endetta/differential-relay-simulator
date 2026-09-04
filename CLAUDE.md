@@ -8,10 +8,12 @@ dengan kode di repositori ini.
 Satu file mandiri: **`differential_relay_simulator.html`** — simulator edukasi **relay
 diferensial persentase (ANSI/IEEE 87)** yang berjalan penuh di browser. Plotnya adalah
 bidang **Iop–Irt** (arus operasi vs arus restraint/bias): kurva ambang **multi-slope**
-(pickup, slope 1..N, breakpoint), daerah TRIP/RESTRAIN, titik uji (klik/seret + dari
-kalkulator I1/I2), kartu **faktor kesalahan pengukuran** (error/saturasi CT per sisi +
-mismatch rasio → titik sejati vs titik terukur), tooltip hover elemen plot, plus preset,
-skenario arus (incl. Inrush sbg pembanding), dan animasi sapuan *eksternal → internal*.
+(pickup, slope 1..N, breakpoint) + **pita toleransi** (keputusan 3 status TRIP/AMBANG/
+RESTRAIN), titik uji (klik/seret + dari kalkulator I1/I2 — **bisa diedit ulang**), kartu
+**faktor kesalahan pengukuran** (error/saturasi CT per sisi + mismatch rasio → titik
+sejati vs titik terukur), tooltip hover elemen plot, panduan via **ikon "?"** (bukan teks
+permanen), plus preset, skenario arus (incl. Inrush sbg pembanding), dan animasi sapuan
+*eksternal → internal*.
 Untuk orientasi cepat (TL;DR, peta file, gotcha) baca `docs/overview.md`; **model &
 rumus**: `docs/PRD.md` §5 (sumber kebenaran — jangan ubah rumus inti tanpa memperbarui
 dokumen itu juga).
@@ -36,9 +38,9 @@ Buka `.html` langsung di browser (`file:///...`), atau static server
 Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 
 ```bash
-node tools/model.test.js       # 42 asersi literals model murni (PRD §5 + error CT)
+node tools/model.test.js       # 47 asersi literals model murni (PRD §5 + error CT + toleransi)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 53 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 63 asersi seam desain & perilaku UI
 ```
 
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
@@ -58,12 +60,16 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 1. **Helper** — `fmt`, `clamp`, `fmtSign`, `niceCeil`/`niceStep` (grid 1-2-5).
 2. **State global** `S` — `S.param` (`P`): `pickup`, `method` (`'average'|'maximum'`),
    `slopes[]` (`{id,percent,breakpoint}`; **slope terakhir `breakpoint:null`** = sampai
-   ∞), `i1`/`i2`, `err` = `{ct1,ct2,mm}` (faktor kesalahan %, lihat model), `points[]`
-   (`{id,source:'manual'|'calc',irt,iop,i1,i2}`), `selectedId`, `probe`/`probeTrace`
-   (animasi). `S.ui.collapsed`. Semua kontrol menulis ke `S`; tidak ada state lain.
+   ∞),   `i1`/`i2`, `err` = `{ct1,ct2,mm}` (faktor kesalahan %, lihat model), `tol` = pita
+   toleransi ambang % (default 10), `points[]` (`{id,source:'manual'|'calc',irt,iop,i1,
+   i2}`), `selectedId`, `editId` (titik 'calc' yg sedang diedit via kalkulator),
+   `probe`/`probeTrace` (animasi). `S.ui.collapsed`. Semua kontrol menulis ke `S`; tidak ada state lain.
 3. **Model murni** — `iopOf`, `irtOf`, `slopeLine` (kumulatif), `thresholdAt
-   = max(pickup, slopeLine)`, `statusOf` (TRIP iff `iop > threshold+1e-12` — tepat di
-   kurva = RESTRAIN), `marginOf`, `computeDomain`, `curveSample`. Konvensi: fungsi
+   = max(pickup, slopeLine)`, `thresholdTol = kurva×(1+tol/100)` (batas trip dgn pita
+   toleransi), `tripState`/`statusOf` (3 status: RESTRAIN ≤ kurva · AMBANG di dalam
+   pita · TRIP di atas pita; `tol` 0/absent → pita kosong = perilaku lama),
+   `marginOf` (selalu thd KURVA, bukan batas pita), `computeDomain` (yMax ikut pita
+   agar tak terpotong), `curveSample`. Konvensi: fungsi
    memakai `m={pickup,method,slopes}` supaya bisa diuji dengan objek sintetis.
    **Faktor kesalahan pengukuran** (di luar PRD §5): `measuredPair(i1,i2,err)` = arus
    yang DILIHAT relay — `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct
@@ -80,22 +86,31 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 4. **Binding kontrol** → `render()`. Semua perubahan state lewat satu entry point.
 5. **Renderer murni per bagian** — `renderPlane` (SVG `#plane` **adaptif**: `viewBox` =
    ukuran elemen aktual `clientWidth/Height`, fallback `640×440` untuk tes; grid+tick
-   ber-halo putih `paint-order:stroke`; poligon DAERAH TRIP/RESTRAIN pakai
-   `var(--red-soft)`/`var(--green-soft)`; kurva `stroke:var(--ink)`; pickup putus-putus
-   copper; marker `BPn`   teal; **ghost titik sejati** (`circle[data-true-point]` + garis putus
+   ber-halo putih `paint-order:stroke`; poligon RESTRAIN `var(--green-soft)`, pita
+   AMBANG `polygon[data-band]` copper-soft + garis batas trip putus-putus copper (hanya
+   saat `tol>0`), TRIP `var(--red-soft)`; kurva `stroke:var(--ink)`; pickup putus-putus
+   copper; marker `BPn` teal; warna titik by status via `stCol` (TRIP merah/AMBANG
+   copper/RESTRAIN hijau); **ghost titik sejati** (`circle[data-true-point]` + garis putus
    `line[data-err-link]`) hanya saat `hasErr`), `renderTable`, `renderSide` (status box
-   + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan` + formula KaTeX — TANPA
-   kalimat ringkasan & TANPA kotak edukasi; indikator PALSU/TERLEWAT = sisipan kecil di
+   + readout nilai-langsung 2 grup `Titik uji`/`Keputusan` + formula KaTeX — TANPA
+   kalimat ringkasan & TANPA kotak edukasi; dua nilai utama sbg **hero** `div.hero-row`
+   (Irt netral, Iop berwarna status; baris Irt/Iop lama DIHAPUS); baris
+   `Batas trip (tol N%)` saat `tol>0`; indikator PALSU/TERLEWAT = sisipan kecil di
    baris margin kotak status), `renderWarnings` (peringatan non-blocking PRD §5.6).
    **Tooltip hover** (elemen saja, margin ±10 px): `hoverInfo(map,irt,iop)` murni →
    `{kind:'point'|'bp'|'pickup'|'curve', head, rows}`; `#planeTip` ikut kursor —
    **default `display:none`, tampil via class `.show`** (JANGAN pakai attr `hidden`:
-   CSS `display` menimpanya → tooltip tak pernah hilang — bug lama). Legenda di bawah
-   kurva **3 item saja** (titik TRIP / RESTRAIN / sejati) — info lain sudah berlabel
-   di kurva. Scrollbar tipis GLOBAL via `*{scrollbar-width:thin…}` + `::-webkit-*` 6px.
+   CSS `display` menimpanya → tooltip tak pernah hilang — bug lama). **Panduan via
+   ikon "?"** (`span.q[data-tip]`, delegasi hover → `#qTip`) — panduan TIDAK pernah
+   ditulis sbg teks permanen di panel. Legenda di bawah kurva **4 item** (titik
+   TRIP/AMBANG/RESTRAIN + sejati) — info lain sudah berlabel di kurva. Scrollbar tipis
+   GLOBAL via `*{scrollbar-width:thin…}` + `::-webkit-*` 6px.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
-   gotcha di bawah).
+   gotcha di bawah). **Edit titik 'calc'**: klik titik (tabel/plot) → `selectPoint`
+   memuat I1/I2-nya ke `#i1/#i2` + set `P.editId` (tombol `#addPointBtn` jadi
+   "Perbarui titik #N"); `commitCalcAdd` memperbarui titik itu — tanpa edit ia
+   menambah titik baru.
 7. **`render()`** master: render plane → tabel → sisi → warnings → preview kalkulator.
    Tak ada status titik yang disimpan — renderer menurunkannya sendiri via
    `evaluatePoint` thd kurva saat ini.
@@ -121,14 +136,24 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   (`[data-point]`) atau kotak latar `[data-plot-bg]`. Jangan hapus.
 - Jangan simpan state UI di luar `S` (kecuali hal sepele seperti `animTimer`).
 - **Kartu kanan = nilai langsung saja**: jangan kembalikan kalimat ringkasan (`.r-sum`)
-  atau kotak edukasi kontekstual (`#eduNote`/`renderEdu`) — keduanya DIHAPUS atas
-  permintaan desain (revisi sesi ini). Penjelasan skenario → 1 hint singkat di bawah
-  tombol skenario (`#scenHint`, panel kiri).
+  atau kotak edukasi kontekstual (`#eduNote`/`renderEdu`) — DIHAPUS. Nilai utama
+  Irt/Iop tampil sbg **hero** (`div.hero-row`), bukan baris label→nilai biasa.
+- **Panduan TIDAK boleh jadi teks permanen di panel** (`.hint`, `#methodHint`,
+  `#scenHint` sudah dihapus): semua penjelasan lewat ikon `span.q[data-tip]` + tooltip
+  `#qTip` saat hover (delegasi `pointerover/out`, baca `dataset.tip`). Jangan menulis
+  kalimat panduan baru di panel; jangan mengembalikan `#scenHint`/`#methodHint`/attr
+  `hidden` pada tooltip.
+- **Keputusan 3 status** (`tripState`/`statusOf`): RESTRAIN/AMBANG/TRIP; AMBANG =
+  copper (`var(--copper)`/`-soft`, class `.badge.AMBANG`) — warna semantik baru,
+  jangan dipakai dekoratif. Margin selalu thd kurva, bukan batas pita.
+- **Edit titik 'calc'**: `selectPoint` memuat I1/I2 ke kalkulator & set `P.editId`;
+  `commitCalcAdd` memperbarui titik itu (tidak menambah baru). Titik manual tak punya
+  I1/I2 → hanya bisa dipindah via seret.
 - KaTeX: cek `typeof katex==='function'` sebelum `katex.render` (fallback teks biasa).
 - Label/teks SVG selalu ber-halo (`paint-order:stroke` + `stroke:var(--surface)`) agar
   terbaca di atas kurva/daerah.
-- Warna pakai variabel `:root`; TRIP=merah & RESTRAIN=hijau adalah warna **semantik**
-  status — jangan dipakai dekoratif di tempat lain.
+- Warna pakai variabel `:root`; TRIP=merah, RESTRAIN=hijau & AMBANG=copper adalah warna
+  **semantik** status — jangan dipakai dekoratif di tempat lain (helper `stCol`).
 
 ## Editing conventions
 

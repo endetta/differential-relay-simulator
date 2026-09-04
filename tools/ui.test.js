@@ -247,8 +247,12 @@ check('skenario Inrush hadir (pembanding: kurva saja belum cukup)', () => {
   contains(src, 'harmonik ke-2', 'desc inrush menyebut restraint harmonik');
 });
 
-/* titik sejati vs titik terukur — keputusan selalu pada yang DILIHAT relay */
+/* titik sejati vs titik terukur — keputusan selalu pada yang DILIHAT relay.
+   Konteks metode di-set average (sisa maximum dari tes 'ganti metode'): dgn
+   maximum + pita toleransi default 10%, titik 5/5+ct2=50 jatuh di AMBANG; demo
+   trip PALSU butuh irt rata-rata agar margin jelas di atas pita. */
 clearPoints(); pub.P.err.ct1 = 0; pub.P.err.ct2 = 0; pub.P.err.mm = 0;
+P.method = 'average';
 addPoint('calc', 0, 0, 5, 5);
 render();
 check('err=0: titik calc 5/5 RESTRAIN, tanpa penanda sejati', () => {
@@ -301,7 +305,7 @@ check('runScenario satct → arus sejati 5/5 & ct2=45 (kartu error ikut terisi)'
   if (Math.abs(pub.P.err.ct2 - 45) > 1e-9) throw new Error('ct2 harus 45, dapat ' + pub.P.err.ct2);
   if (pub.P.err.ct1 !== 0 || pub.P.err.mm !== 0) throw new Error('ct1/mm harus 0');
   if (E.i1.value !== '5' || E.i2.value !== '5') throw new Error('arus sejati harus 5/5');
-  contains(E.scenHint.innerHTML, 'TRIP PALSU', 'desc skenario di hint panel kiri');
+  contains(E.scenQ.dataset.tip, 'TRIP PALSU', 'desc skenario di tip ikon ?');
 });
 check('runScenario inrush → isi arus 5/0.05 + auto-add titik demo TRIP', () => {
   clearPoints();
@@ -312,7 +316,7 @@ check('runScenario inrush → isi arus 5/0.05 + auto-add titik demo TRIP', () =>
   const pt = pub.P.points[pub.P.points.length - 1];
   if (Math.abs(pt.i1 - 5) > 1e-9 || Math.abs(pt.i2 - 0.05) > 1e-9) throw new Error('titik demo harus 5/0.05');
   if (E.verdictLabel.textContent !== 'TRIP') throw new Error('kurva magnitudo → TRIP (pembanding)');
-  contains(E.scenHint.innerHTML, 'harmonik', 'catatan harmonik di hint panel kiri');
+  contains(E.scenQ.dataset.tip, 'harmonik', 'catatan harmonik di tip ikon ?');
 });
 check('runScenario inrush dua kali → titik demo tak diduplikasi', () => {
   const n = pub.P.points.length;
@@ -326,7 +330,7 @@ check('kartu kanan: ringkasan kalimat & edu-note DIHAPUS (markup, css, js)', () 
   if (src.includes('edu-note')) throw new Error('edu-note masih ada');
   if (src.includes('renderEdu')) throw new Error('renderEdu masih ada');
 });
-check('kartu kanan: readout berisi baris nilai langsung tanpa kalimat', () => {
+check('kartu kanan: hero Irt/Iop (nilai utama di-highlight) + baris nilai lain', () => {
   clearPoints(); zeroErrors();
   addPoint('manual', 1.0, 2.0, null, null);
   render();
@@ -334,8 +338,13 @@ check('kartu kanan: readout berisi baris nilai langsung tanpa kalimat', () => {
   if (E.readout.innerHTML.includes('berada di <b>atas</b> ambang')) throw new Error('kalimat ringkasan masih ada');
   contains(E.readout.innerHTML, '<div class="rgroup-title">Titik uji</div>', 'grup 1');
   contains(E.readout.innerHTML, '<div class="rgroup-title">Keputusan</div>', 'grup 2');
-  contains(E.readout.innerHTML, '<span>Irt (restraint)</span><span>1.00 pu</span>', 'nilai Irt');
-  contains(E.readout.innerHTML, '<span>Iop (operasi)</span><span>2.00 pu</span>', 'nilai Iop');
+  contains(E.readout.innerHTML, '<div class="hero-row">', 'hero-row');
+  contains(E.readout.innerHTML, '<span class="h-l">Irt — restraint</span>', 'label hero Irt');
+  contains(E.readout.innerHTML, '<span class="h-l">Iop — operasi</span>', 'label hero Iop');
+  contains(E.readout.innerHTML, '<span class="h-v">1.00</span>', 'nilai hero Irt');
+  contains(E.readout.innerHTML, '<span class="h-v">2.00</span>', 'nilai hero Iop');
+  if (E.readout.innerHTML.includes('Irt (restraint)')) throw new Error('baris Irt lama harus diganti hero');
+  if (E.readout.innerHTML.includes('Iop (operasi)</span><span>')) throw new Error('baris Iop lama harus diganti hero');
   contains(E.readout.innerHTML, '<span>Ambang kurva</span><span>0.30 pu</span>', 'nilai ambang');
 });
 
@@ -414,9 +423,10 @@ check('scrollbar tipis global: * scrollbar-width + ::-webkit-scrollbar 6px', () 
 });
 
 /* ===== revisi: kartu error — hint singkat + baris live errOut ===== */
-check('kartu error: hint singkat (tanpa paragraf) + errOut live', () => {
+check('kartu error: penjelasan hanya via ikon ? — teks panduan permanen hilang', () => {
   contains(src, 'id="errOut"', 'errOut markup');
-  contains(src, 'keputusan di titik terukur', 'hint singkat');
+  if (/class="hint"/.test(src)) throw new Error('masih ada elemen .hint berisi teks permanen');
+  if (!/id="errNoteQ"[^>]*data-tip="[^"]*keputusan di titik terukur/.test(src)) throw new Error('ikon ? harus membawa penjelasan keputusan-di-titik-terukur');
   if (src.includes('arus sekunder yang DILIHAT relay mengecil')) throw new Error('paragraf panjang masih ada');
 });
 check('errOut live: ct2=50 → I₂ 5.00 → 2.50 pu; tanpa error → identitas', () => {
@@ -430,22 +440,112 @@ check('errOut live: ct2=50 → I₂ 5.00 → 2.50 pu; tanpa error → identitas'
 });
 
 /* ===== revisi: keterangan ringkas (metode & skenario) ===== */
-check('hint metode: formula saja (tanpa kalimat rata-rata/konservatif)', () => {
-  contains(src, 'id="methodHint">Irt = (|I₁|+|I₂|)/2', 'markup default');
-  pub.setMethod('maximum');
-  if (E.methodHint.textContent !== 'Irt = max(|I₁|,|I₂|)') throw new Error('methodHint maximum: ' + E.methodHint.textContent);
-  pub.setMethod('average');
-  if (E.methodHint.textContent !== 'Irt = (|I₁|+|I₂|)/2') throw new Error('methodHint average: ' + E.methodHint.textContent);
+check('metode restraint: penjelasan via ikon ? — teks permanen & #methodHint DIHAPUS', () => {
+  if (src.includes('id="methodHint"')) throw new Error('methodHint harus dihapus');
+  contains(src, 'class="q" data-tip="Rata-rata: Irt=(|I₁|+|I₂|)/2 · Maximum: Irt=max(|I₁|,|I₂|)"', 'tip ikon metode memuat kedua rumus');
   if (src.includes('— konservatif')) throw new Error('kalimat metode masih ada');
 });
-check('hint skenario: default & desc singkat (bukan paragraf)', () => {
-  contains(src, 'id="scenHint">Skenario mengisi I₁ &amp; I₂', 'default singkat');
+check('skenario: deskripsi lewat ikon ? (#scenQ data-tip) — #scenHint DIHAPUS', () => {
+  if (src.includes('id="scenHint"')) throw new Error('scenHint harus dihapus');
+  if (!src.includes('id="scenQ"')) throw new Error('ikon ? skenario (#scenQ) harus ada');
   pub.runScenario('satct');
-  if (!E.scenHint.innerHTML.includes('TRIP PALSU')) throw new Error('scenHint satct: ' + E.scenHint.innerHTML);
-  if (E.scenHint.innerHTML.includes('Inilah alasan slope 2')) throw new Error('desc panjang satct masih ada');
+  if (!(E.scenQ && E.scenQ.dataset.tip && E.scenQ.dataset.tip.includes('TRIP PALSU'))) throw new Error('tip satct: ' + (E.scenQ && E.scenQ.dataset.tip));
   pub.runScenario('inrush');
-  if (!E.scenHint.innerHTML.includes('harmonik')) throw new Error('scenHint inrush: ' + E.scenHint.innerHTML);
-  if (E.scenHint.innerHTML.includes('Pembanding: kurva saja')) throw new Error('desc panjang inrush masih ada');
+  if (!(E.scenQ && E.scenQ.dataset.tip && E.scenQ.dataset.tip.includes('harmonik'))) throw new Error('tip inrush: ' + (E.scenQ && E.scenQ.dataset.tip));
+});
+
+
+/* ===== fitur baru: pita toleransi ambang (keputusan 3 status: TRIP/AMBANG/RESTRAIN) ===== */
+check('kontrol Toleransi ambang hadir (slider tol + angka, default 10%)', () => {
+  contains(src, 'id="tol"', 'slider tol');
+  contains(src, 'id="tolNum"', 'angka tol');
+  contains(src, 'id="tolv"', 'nilai tol di label');
+  contains(src, 'id="tol" min="0" max="50" step="1" value="10"', 'default 10%');
+  contains(src, 'tol:10,', 'state default 10');
+});
+check('P.tol>0 → pita data-band digambar; titik dalam pita = AMBANG (badge/verdict/readout)', () => {
+  clearPoints(); zeroErrors();
+  P.tol = 30; P.pickup = 0.30;
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  render();
+  contains(svg(), 'data-band', 'pita toleransi harus digambar');
+  addPoint('manual', 2.0, 0.55, null, null);   // ambang 0.5, pita 0.5..0.65
+  render();
+  if (E.verdictLabel.textContent !== 'AMBANG') throw new Error('verdict harus AMBANG: ' + E.verdictLabel.textContent);
+  if (E.verdictLabel.style.color !== 'var(--copper)') throw new Error('warna AMBANG harus copper: ' + E.verdictLabel.style.color);
+  contains(E.ptsBody.innerHTML, '>AMBANG</span>', 'badge tabel AMBANG');
+  contains(E.marginLabel.textContent, 'di dalam pita toleransi', 'wording marginLabel');
+  contains(svg(), 'fill="var(--copper)"', 'lingkaran titik AMBANG copper');
+  P.tol = 10; render();
+});
+check('P.tol=0 → pita hilang (data-band tak ada)', () => {
+  P.tol = 0; render();
+  if (svg().includes('data-band')) throw new Error('tol=0 tak boleh ada pita');
+  P.tol = 10; render();
+});
+check('legenda: item titik AMBANG (copper) ditambahkan', () => {
+  render();
+  const lg = E.legend.innerHTML;
+  contains(lg, 'titik AMBANG', 'legenda AMBANG');
+  contains(lg, 'background:var(--copper)', 'swatch copper');
+});
+check('kartu kanan: baris Batas trip (kurva+tol) saat tol>0; hilang saat 0', () => {
+  clearPoints();
+  P.tol = 10;
+  addPoint('manual', 1.0, 2.0, null, null);
+  render();
+  contains(E.readout.innerHTML, '<span>Batas trip (tol +10%)</span>', 'label batas trip');
+  contains(E.readout.innerHTML, '<span>0.33 pu</span>', 'batas trip irt=1: 0.3×1.1');
+  P.tol = 0; render();
+  if (E.readout.innerHTML.includes('Batas trip')) throw new Error('tol=0 tak boleh ada baris batas trip');
+  P.tol = 10; render();
+});
+
+/* ===== fitur baru: ikon "?" untuk panduan (qTip) — semua teks petunjuk ke tooltip ===== */
+check('ikon ? hadir (metode/toleransi/error/skenario) + #qTip', () => {
+  contains(src, 'id="qTip"', 'kotak tooltip qTip');
+  contains(src, 'class="q" data-tip="Rata-rata: Irt=(|I₁|+|I₂|)/2', 'ikon metode');
+  contains(src, 'data-tip="Pita di atas kurva ambang', 'ikon toleransi');
+  contains(src, 'data-tip="CT sisi 1 jenuh', 'ikon error sisi 1');
+  contains(src, 'data-tip="CT sisi 2 jenuh', 'ikon error sisi 2');
+  contains(src, 'data-tip="Mismatch rasio', 'ikon mismatch');
+  contains(src, 'id="scenQ"', 'ikon skenario');
+  if (!/#qTip\{[^}]*display:none/.test(src)) throw new Error('default #qTip harus display:none');
+  contains(src, '#qTip.show', 'css show');
+});
+check('qTip: delegasi hover .q[data-tip] membaca data-tip (bukan teks permanen)', () => {
+  contains(src, "closest('.q[data-tip]')", 'delegasi pointerover');
+  contains(src, 'dataset.tip', 'baca data-tip');
+});
+
+/* ===== fitur baru: edit titik dari kalkulator (klik → muat I₁/I₂ → perbarui) ===== */
+check('klik titik kalkulator → mode edit: I₁/I₂ termuat + tombol Perbarui titik #N', () => {
+  clearPoints();
+  P.editId = null;
+  addPoint('calc', 0, 0, 4, 2);
+  if (E.addPointBtn.textContent !== 'Perbarui titik #1') throw new Error('tombol: ' + E.addPointBtn.textContent);
+  if (E.i1.value !== '4' || E.i2.value !== '2') throw new Error('I₁/I₂ harus termuat: ' + E.i1.value + '/' + E.i2.value);
+  if (P.editId !== P.points[0].id) throw new Error('editId harus menunjuk titik tsb');
+});
+check('commitCalcAdd mengedit (perbarui) titik, tidak menambah baru', () => {
+  E.i1.value = '5'; E.i2.value = '3';
+  pub.commitCalcAdd();
+  if (P.points.length !== 1) throw new Error('panjang harus tetap 1: ' + P.points.length);
+  const pt = P.points[0];
+  if (pt.i1 !== 5 || pt.i2 !== 3) throw new Error('titik harus diperbarui ke 5/3: ' + pt.i1 + '/' + pt.i2);
+  if (P.editId != null) throw new Error('editId harus dibersihkan');
+  if (E.addPointBtn.textContent !== 'Tambahkan titik ke plot') throw new Error('tombol kembali: ' + E.addPointBtn.textContent);
+  render();
+});
+check('titik manual tak masuk mode edit; commitCalcAdd saat tak edit = tambah baru', () => {
+  clearPoints(); P.editId = null;
+  addPoint('manual', 1.0, 2.0, null, null);
+  if (E.addPointBtn.textContent !== 'Tambahkan titik ke plot') throw new Error('manual tak boleh edit: ' + E.addPointBtn.textContent);
+  if (P.editId != null) throw new Error('manual tak boleh set editId');
+  E.i1.value = '7'; E.i2.value = '1';
+  pub.commitCalcAdd();
+  if (P.points.length !== 2) throw new Error('harus tambah 1 titik: ' + P.points.length);
+  if (P.points[1].i1 !== 7 || P.points[1].i2 !== 1) throw new Error('titik baru harus 7/1');
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

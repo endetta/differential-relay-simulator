@@ -7,8 +7,9 @@ tanpa backend.
 
 Simulator memetakan **karakteristik multi-slope** pada bidang **Iop–Irt**: arus operasi
 `Iop = |I1 − I2|` vs arus restraint `Irt` (Average `(|I1|+|I2|)/2` atau Maximum
-`max(|I1|,|I2|)`), dan menilai setiap titik uji sebagai **TRIP** atau **RESTRAIN**
-terhadap kurva ambang `max(pickup, Σ slope)`.
+`max(|I1|,|I2|)`), dan menilai setiap titik uji terhadap kurva ambang
+`max(pickup, Σ slope)` dengan **3 status**: **RESTRAIN**, **AMBANG** (di dalam pita
+toleransi), atau **TRIP** — toleransi ambang bisa diatur (0–50%).
 
 ## Menjalankan
 
@@ -27,19 +28,22 @@ inti tetap berjalan tanpanya.
 ## Fitur
 
 - **Kurva karakteristik multi-slope** (maks. 4 segmen): minimum pickup, slope 1..N,
-  breakpoint — digambar live, daerah **TRIP** (merah) vs **RESTRAIN** (hijau)
+  breakpoint — digambar live, daerah **TRIP** (merah) vs **RESTRAIN** (hijau) +
+  **pita toleransi AMBANG** (copper) di atas kurva
 - **Dua metode restraint**: Average atau Maximum (titik dari kalkulator mengikuti)
-- **Titik uji**: klik langsung di plot / seret untuk memindah; atau hitung dari
-  **I1 & I2** lewat kalkulator arus
+- **Titik uji**: klik langsung di plot / seret untuk memindah; hitung dari **I1 & I2**
+  lewat kalkulator arus; **klik titik yang sudah ada → I1/I2 termuat & bisa diperbarui**
 - **Tooltip interaktif**: arahkan kursor ke elemen plot (titik uji, marker breakpoint,
   garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor
 - **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio — titik
   **sejati vs titik terukur** (keputusan relay selalu pada yang terukur; trip palsu /
   terlewat ditandai langsung)
-- **Daftar titik uji**: tabel dengan badge status TRIP/RESTRAIN, margin (%), hapus,
-  sorot, bersihkan
-- **Kartu kanan nilai-langsung**: kotak status + baris label→nilai + formula KaTeX —
-  tanpa kalimat panjang; legenda plot sederhana (3 item); scrollbar tipis global
+- **Panduan via ikon "?"**: teks petunjuk permanen diganti tooltip saat hover
+- **Daftar titik uji**: tabel dengan badge status TRIP/AMBANG/RESTRAIN, margin (%),
+  hapus, sorot, bersihkan
+- **Kartu kanan nilai-langsung**: kotak status + nilai utama **Irt/Iop ditonjolkan**
+  (hero) + formula KaTeX — tanpa kalimat panjang; legenda plot sederhana (4 item);
+  scrollbar tipis global
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
   (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding), animasi sapuan
   *eksternal → internal* dengan titik berjalan menyeberangi kurva
@@ -58,9 +62,9 @@ inti tetap berjalan tanpanya.
 ## Validasi
 
 ```bash
-node tools/model.test.js       # model: threshold multi-slope, status, margin, error CT (42 asersi)
+node tools/model.test.js       # model: threshold multi-slope, status, margin, error CT, toleransi (47 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (53 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (63 asersi)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

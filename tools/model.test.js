@@ -17,7 +17,7 @@ function approx(act, exp, tol, ctx) {
 }
 
 const ctx = loadSimulator(HTML);
-const { iopOf, irtOf, slopeLine, thresholdAt, statusOf, marginOf, evaluatePoint, measuredPair, computeDomain, render } = ctx.pub;
+const { iopOf, irtOf, slopeLine, thresholdAt, thresholdTol, statusOf, tripState, marginOf, evaluatePoint, measuredPair, computeDomain, render } = ctx.pub;
 
 /* Konfigurasi default PRD §5.5: pickup 0.30, s1 25% @ 2.0, s2 65% → ∞ */
 const M = { pickup: 0.30, method: 'average', slopes: [
@@ -195,6 +195,35 @@ check('evaluatePoint manual tak terpengaruh error (hasErr false)', () => {
   if (d.hasErr) throw new Error('titik manual = bidang terukur, tanpa pergeseran');
   approx(d.irtTrue, 1, 1e-9, 'irtTrue = irt'); approx(d.iopTrue, 2, 1e-9, 'iopTrue = iop');
   if (d.status !== 'TRIP') throw new Error('harus TRIP');
+});
+
+/* ===== fitur: toleransi ambang (pita di atas kurva; 3 status) =====
+   Batas trip = kurva×(1+tol/100); titik di atas kurva tapi dalam pita = AMBANG.
+   Default tanpa `tol` → pita kosong, perilaku lama tetap. */
+const MT = { pickup: 0.30, method: 'average', tol: 20, slopes: M.slopes };
+check('thresholdTol(2) = 0.5×1.2 = 0.6; tanpa tol = sama dgn thresholdAt', () => {
+  approx(thresholdTol(MT, 2), 0.6, 1e-9, 'band 20% @2');
+  approx(thresholdTol(M, 2), 0.5, 1e-9, 'tanpa tol');
+});
+check('tripState: di kurva → RESTRAIN, dalam pita → AMBANG, di atas pita → TRIP', () => {
+  if (tripState(MT, 0.5, 2) !== 'RESTRAIN') throw new Error('tepat kurva harus RESTRAIN');
+  if (tripState(MT, 0.55, 2) !== 'AMBANG') throw new Error('0.55 dlm pita (0.5..0.6) harus AMBANG');
+  if (tripState(MT, 0.62, 2) !== 'TRIP') throw new Error('0.62 di atas pita harus TRIP');
+});
+check('tanpa tol: tripState identik dgn keputusan lama (pita kosong)', () => {
+  if (tripState(M, 0.5, 2) !== 'RESTRAIN') throw new Error('tepat kurva RESTRAIN');
+  if (tripState(M, 0.5 + 1e-6, 2) !== 'TRIP') throw new Error('sedikit di atas kurva TRIP (tanpa tol)');
+  if (statusOf(M, 0.5, 2) !== 'RESTRAIN' || statusOf(M, 0.5 + 1e-6, 2) !== 'TRIP') throw new Error('statusOf ikut tol');
+});
+check('evaluatePoint dlm pita → status AMBANG; margin tetap thd kurva (+10%)', () => {
+  const d = evaluatePoint({ ...MT, err: { ct1: 0, ct2: 0, mm: 0 } }, { irt: 2, iop: 0.55 });
+  approx(d.thr, 0.5, 1e-9, 'thr kurva');
+  if (d.status !== 'AMBANG') throw new Error('harus AMBANG, dapat ' + d.status);
+  approx(d.margin, 10, 1e-6, 'margin (0.55−0.5)/0.5');
+});
+check('domain: yMax menutupi pita toleransi (tak terpotong di tol tinggi)', () => {
+  const dd = computeDomain({ ...M, tol: 60 });
+  if (thresholdTol({ ...M, tol: 60 }, dd.xMax) > dd.yMax + 1e-9) throw new Error('pita terpotong yMax');
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

@@ -26,9 +26,13 @@ menghitung titik dari arus dua sisi (I1, I2).
   *eksternal → internal* (titik berjalan menyeberangi kurva), **kartu faktor kesalahan
   pengukuran** (CT per sisi + mismatch rasio → titik sejati vs titik terukur), dan
   **tooltip hover** elemen plot.
-- **Revisi desain (sesi ini):** kartu kanan = **nilai langsung** (baris label→nilai,
-  formula, tanpa kalimat ringkasan & tanpa kotak edukasi; PALSU/TERLEWAT jadi sisipan
-  kecil di baris margin); tooltip hanya untuk elemen yang digambar (margin ±10 px).
+- **Revisi desain:** kartu kanan = **nilai langsung** (nilai utama Irt/Iop sbg **hero**
+  `div.hero-row`, formula, tanpa kalimat ringkasan & tanpa kotak edukasi;
+  PALSU/TERLEWAT jadi sisipan kecil di baris margin); tooltip hanya untuk elemen yang
+  digambar (margin ±10 px); **panduan via ikon "?"** (`span.q[data-tip]` → tooltip
+  `#qTip`) — teks petunjuk permanen di panel dihapus; **pita toleransi ambang**
+  (slider `tol`, keputusan 3 status TRIP/AMBANG/RESTRAIN, pita copper `data-band`);
+  **titik kalkulator bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`).
 
 ## Menjalankan
 
@@ -51,9 +55,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `CLAUDE.md` | Panduan arsitektur/konvensi untuk agen coding. |
 | `README.md` | Deskripsi publik + cara menjalankan + validasi. |
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
-| `tools/model.test.js` | Tes literals model murni (PRD §5). `node tools/model.test.js`. |
+| `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status, 47 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI. `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (63 asersi). `node tools/ui.test.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
 
