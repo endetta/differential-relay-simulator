@@ -44,6 +44,18 @@ node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
 node tools/ui.test.js          # 76 asersi seam desain & perilaku UI
 ```
 
+**Melihat UI tanpa membuka browser** — `node tools/shoot.js` (tanpa dependensi, CDP
+via WebSocket native Node ≥22): menjalankan headless Chrome, memuat HTML lokal, lalu
+untuk tiap view (default/points/band/err/obs/obs-lin/tooltip/qtip/collapsed/mobile)
+menerapkan state tertentu & menyimpan PNG penuh ke `tools/shots/<view>.png` + lembar
+kontak `index.html`. Karena PNG tak bisa "dibaca" agent, ia juga menulis
+`tools/shots/report.json`/`report.txt` — geometri elemen kunci (rect kartu/plane/
+legend), status tooltip (`planeTip`/`qTip` shown?), ikon `?` + label induknya
+(flag ORPHAN), overflow horizontal, exception konsol, dan snapshot `P.err`/`P.obs`/
+probe. View JS memakai fungsi global aplikasi (`addPoint`, `runScenario`, `applyErr`,
+`applyObs`, `selectPoint`, …) — jangan duplikasi logika. Folder `tools/shots/`
+GITIGNORED (artefak). `CHROME=/path node tools/shoot.js` bila Chrome tak terdeteksi.
+
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
 file di-rename.
 

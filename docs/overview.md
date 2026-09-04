@@ -63,6 +63,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status + obs, 53 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
 | `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (76 asersi). `node tools/ui.test.js`. |
+| `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
 
@@ -185,6 +186,7 @@ node tools/model.test.js       # 53 asersi literals model (PRD §5 + error + tol
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
 node tools/ui.test.js          # 76 asersi seam desain + perilaku UI (hoverInfo, legend,
                                #    errOut, tooltip .show, scrollbar, collapse 4 kartu, obs)
+node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari

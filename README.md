@@ -69,6 +69,7 @@ inti tetap berjalan tanpanya.
 node tools/model.test.js       # model: threshold, status, margin, error CT, toleransi, obs (53 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
 node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + obs (76 asersi)
+node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan
