@@ -3,7 +3,9 @@
    yang menangkap innerHTML, jalankan isi <script> via new Function. Daftar fungsi yang
    diekspor TIDAK dikelola di sini — aplikasi sendiri mempublikasikan `const API` di
    akhir script-nya; harness cukup menambahkan `;global.__pub=API;` (satu sumber kebenaran).
-   Seam yang diuji: string SVG #plane + nilai model murni. */
+   Seam yang diuji: string SVG #plane + nilai model murni. Elemen & window/document
+   menangkap listener (addEventListener) — loadSimulator mengembalikan fireEl/fireWindow/
+   fireDoc utk memicu event sintetis (tes perilaku interaksi, mis. drag titik). */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +28,8 @@ function makeEl(id) {
       toggle(c, force){ const on = force === undefined ? !s.has(c) : !!force; on ? s.add(c) : s.delete(c); return on; },
       contains(c){ return s.has(c); },
     }; })(),
-    addEventListener() {},
+    addEventListener(type, fn){ (listeners[type] = listeners[type] || []).push(fn); },
+    _fire(type, evt){ (listeners[type] || []).forEach(fn => fn(evt)); },
     setAttribute(k, v){ this.attrs[k] = String(v); },
     getAttribute(k){ return this.attrs[k] === undefined ? null : this.attrs[k]; },
     querySelectorAll: () => [],
@@ -73,18 +76,26 @@ function loadSimulator(htmlPath) {
     },
     createElement: tag => makeEl('dyn-' + tag),
   };
+  const docLs = {}, winLs = {};
+  documentStub.addEventListener = (t, f) => { (docLs[t] = docLs[t] || []).push(f); };
   global.document = documentStub;
   global.window = global;
-  global.addEventListener = () => {};
+  global.addEventListener = (t, f) => { (winLs[t] = winLs[t] || []).push(f); };
+  global.removeEventListener = () => {};
   global.matchMedia = () => ({ matches: false });
   global.ResizeObserver = class { observe() {} };
-  global.katex = { render() {} };
 
   new Function(code + ';global.__pub=API;')();
 
   const pub = global.__pub;
   if (!pub || !pub.render) throw new Error('simulator did not export __pub');
-  return { pub, els: elements };
+  return {
+    pub,
+    els: elements,
+    fireWindow: (t, e) => (winLs[t] || []).forEach(f => f(e)),
+    fireDoc: (t, e) => (docLs[t] || []).forEach(f => f(e)),
+    fireEl: (id, t, e) => { const el = elements[id]; if (el && el._fire) el._fire(t, e); },
+  };
 }
 
 function planeSvg(ctx) { return ctx.els.plane.innerHTML; }

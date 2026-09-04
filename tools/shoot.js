@@ -20,7 +20,7 @@
    Catatan penting:
    - Halaman punya SPLASH pembuka + `.wrap{opacity:0}` sampai `#root.ready` → semua
      screenshot menunggu ~2.4 s setelah load (sesuaikan --wait-ms bila perlu).
-   - Font/KaTeX dari CDN; offline → fallback (tidak menggagalkan screenshot).
+   - Font dari CDN; offline → fallback (tidak menggagalkan screenshot).
    - PNG tidak bisa "dibaca" agent → report.json/txt adalah mata utamanya: rect,
      status tooltip, ikon '?' + label induknya, overflow horizontal, error konsol.
    ============================================================================ */
@@ -183,7 +183,7 @@ const REPORT_JS = `(() => {
     status: { rect: R('.status'), text: (document.querySelector('.status .zlabel') || {}).textContent || '' },
     hero: !!document.querySelector('.hero-row'),
     readoutRect: R('#readout'),
-    formula: vis('#formulaOut'),    paramsPanel: pp ? { clientH: pp.clientHeight, scrollH: pp.scrollHeight,
+    paramsPanel: pp ? { clientH: pp.clientHeight, scrollH: pp.scrollHeight,
       scrollable: pp.scrollHeight > pp.clientHeight + 1 } : null,
     cards, qIcons,
     planeTip: vis('#planeTip'), qTip: vis('#qTip'),

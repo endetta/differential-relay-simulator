@@ -24,12 +24,12 @@ dokumen itu juga).
    (`endetta/distance-relay-simulator`): splash krem/ivory, judul bergantian
    `.tt-a`↔`.tt-b` + kilau, palet `--ink/--copper/--blue/--teal`, font Space
    Grotesk/Inter/JetBrains Mono, kartu collapse `.card-b-i`, lock tinggi desktop,
-   label SVG ber-halo, KaTeX. Jangan mengubah seam ini seenaknya — diuji
+   label SVG ber-halo. Jangan mengubah seam ini seenaknya — diuji
    `tools/ui.test.js`.
 2. **Model perhitungan/fitur** = port dari PRD `diff relay/` (salinan: `docs/PRD.md`).
 
 Tidak ada build system / package manager / framework. Satu-satunya dependensi eksternal:
-KaTeX + Google Fonts via CDN (opsional; inti jalan tanpanya).
+Google Fonts via CDN (opsional; inti jalan tanpanya).
 
 ## Menjalankan
 
@@ -41,7 +41,7 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 60 asersi literals model murni (PRD §5 + error CT + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 88 asersi seam desain & perilaku UI (incl. titik-ikut-error)
+node tools/ui.test.js          # 93 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
 ```
 
 **Melihat UI tanpa membuka browser** — `node tools/shoot.js` (tanpa dependensi, CDP
@@ -128,8 +128,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    by status via `stCol` (TRIP merah/AMBANG copper/RESTRAIN hijau); **ghost titik
    sejati** (`circle[data-true-point]` + garis putus `line[data-err-link]`) hanya saat
    `hasErr`), `renderTable`, `renderSide` (status box + readout nilai-langsung 2 grup
-   `Titik uji`/`Keputusan` + formula KaTeX — TANPA kalimat ringkasan & TANPA kotak
-   edukasi; dua nilai utama sbg **hero** `div.hero-row` — **Iop (nilai keputusan)
+   `Titik uji`/`Keputusan` — TANPA kalimat ringkasan, TANPA kotak edukasi & TANPA
+   footer rumus KaTeX (blok `#formulaOut` DIHAPUS: nilainya dobel dgn hero); dua
+   nilai utama sbg **hero** `div.hero-row` — **Iop (nilai keputusan)
    tampil LEBIH DULU** dgn tile ber-status (tint `--*-soft` + aksen kiri `::before` +
    chip `h-chip` berisi TRIP/AMBANG/RESTRAIN + nilai berwarna status), **Irt netral**
    sbg pembanding (`--bg`, aksen `--line`, tanpa chip); baris Irt/Iop lama DIHAPUS;
@@ -141,7 +142,12 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    (atau `dlm pita toleransi ±N%` saat AMBANG), kurva memuat rentang `pita low…top pu`
    saat `tol>0`; `#planeTip` ikut kursor — **default `display:none`, tampil via class
    `.show`** (JANGAN pakai attr `hidden`: CSS `display` menimpanya → tooltip tak pernah
-   hilang — bug lama); animasi masuk `@keyframes tipIn` (fade+slide kecil, hanya restart
+   hilang — bug lama); **saat titik diseret**, tooltip DISEMBUNYIKAN saat `pointerdown`
+   lalu tampil DIJANGKARKAN DI SAMPING titik (bukan ikut kursor yang tepat di atas
+   titik) via helper murni `dragTipPos(px,py,tipW,tipH,boxW,boxH,gap)` — kuadran
+   pertama yang muat penuh di kartu, gap 14, fallback clamp; tooltip tak pernah
+   menutupi titik yang sedang digeser dan kembali ikut kursor setelah `pointerup`;
+   animasi masuk `@keyframes tipIn` (fade+slide kecil, hanya restart
    bila kelas status berubah — `renderTip` bandingkan `className` dulu); aksen kiri
    warna status via class `trip`/`ambang`/`restrain` di wadah. **Panduan via ikon
    "?"** (`span.q[data-tip]`, delegasi hover → `#qTip` dgn animasi `@keyframes qIn` +
@@ -153,7 +159,10 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    GLOBAL via `*{scrollbar-width:thin…}` + `::-webkit-*` 6px.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
-   gotcha di bawah). **Edit titik 'calc'**: klik titik (tabel/plot) → `selectPoint`
+   gotcha di bawah). Seret titik = handler BERNama `planeDown`/`dragMove`/`dragUp`
+   (juga `planeHoverMove` utk tooltip; di-`addEventListener` & diekspor di `API`)
+   — diuji tools/ui.test.js lewat harness yang bisa memicu event (`fireEl`/
+   `fireWindow`). **Edit titik 'calc'**: klik titik (tabel/plot) → `selectPoint`
    memuat I1/I2-nya ke `#i1/#i2` + set `P.editId` (tombol `#addPointBtn` jadi
    "Perbarui titik #N"); `commitCalcAdd` memperbarui titik itu — tanpa edit ia
    menambah titik baru.
@@ -190,8 +199,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   (CSS `#plane …{pointer-events:none}`) agar klik/seret hanya kena lingkaran titik
   (`[data-point]`) atau kotak latar `[data-plot-bg]`. Jangan hapus.
 - Jangan simpan state UI di luar `S` (kecuali hal sepele seperti `animTimer`).
-- **Kartu kanan = nilai langsung saja**: jangan kembalikan kalimat ringkasan (`.r-sum`)
-  atau kotak edukasi kontekstual (`#eduNote`/`renderEdu`) — DIHAPUS. Nilai utama
+- **Kartu kanan = nilai langsung saja**: jangan kembalikan kalimat ringkasan (`.r-sum`),
+  kotak edukasi kontekstual (`#eduNote`/`renderEdu`), maupun footer rumus KaTeX
+  (`#formulaOut` + CDN KaTeX DIHAPUS — nilainya dobel dgn hero) — DIHAPUS. Nilai utama
   Irt/Iop tampil sbg **hero** (`div.hero-row`) — Iop dulu (keputusan, tile ber-status:
   tint `--*-soft`, aksen kiri, chip TRIP/AMBANG/RESTRAIN), Irt netral; bukan baris
   label→nilai biasa.
@@ -212,7 +222,6 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - **Edit titik 'calc'**: `selectPoint` memuat I1/I2 ke kalkulator & set `P.editId`;
   `commitCalcAdd` memperbarui titik itu (tidak menambah baru). Titik manual tak punya
   I1/I2 → hanya bisa dipindah via seret.
-- KaTeX: cek `typeof katex==='function'` sebelum `katex.render` (fallback teks biasa).
 - Label/teks SVG selalu ber-halo (`paint-order:stroke` + `stroke:var(--surface)`) agar
   terbaca di atas kurva/daerah.
 - Warna pakai variabel `:root`; TRIP=merah, RESTRAIN=hijau & AMBANG=copper adalah warna

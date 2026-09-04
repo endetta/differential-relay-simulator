@@ -7,7 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <style>
   :root{
     --bg:#F1F3F0; --surface:#FFFFFF; --ink:#16233A; --ink-soft:#4A5568;
@@ -145,7 +144,6 @@
   .readout .hero.restrain::before{background:var(--green);}
   .readout .hero.restrain .h-v{color:var(--green);}
   .readout .hero.restrain .h-chip{color:var(--green);border-color:var(--green);}
-  .formula-box{margin-top:6px;overflow-x:auto;padding:4px 0;min-height:24px;}
 
   /* tooltip elemen plot (hanya utk yg DIGAMBAR; ikut kursor). Default display:none —
      jangan pakai attr hidden: CSS display di bawah ini menimpanya (bug lama: tooltip
@@ -433,7 +431,6 @@
             <div class="tlabel" id="marginLabel">—</div>
           </div>
           <div class="readout" id="readout"></div>
-          <div class="formula-box" id="formulaOut"></div>
         </div>
       </div>
 
@@ -473,7 +470,6 @@
 
 <div id="qTip" role="tooltip"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script>
 /* =========================================================
    Simulator Differential Relay (ANSI 87) — single file.
@@ -644,7 +640,7 @@ const els={
   slopesContainer:$('slopesContainer'), warnings:$('warnings'),  tbody:$('ptsBody'),
   readout:$('readout'),
   statusBox:$('statusBox'), verdictLabel:$('verdictLabel'), marginLabel:$('marginLabel'),
-  calcOut:$('calcOut'), formulaOut:$('formulaOut'), errOut:$('errOut')
+  calcOut:$('calcOut'), errOut:$('errOut')
 };
 
 /* =========================================================
@@ -1308,21 +1304,23 @@ function pointerToPu(e){
 }
 const round2=v=>Math.round(v*100)/100;
 let dragId=null;
-plane.addEventListener('pointerdown',e=>{
+/* Mulai seret titik MANUAL: pilih, catat id, lalu SEMBUNYIKAN tooltip hover yang
+   sedang tampil — jangan sampai ia menutupi titik saat mulai digeser (saat pointermove
+   tooltip muncul lagi, dijangkarkan DI SAMPING titik oleh planeHoverMove). */
+function planeDown(e){
   const c=e.target.closest?e.target.closest('[data-point]'):null;
   if(c){
     const pt=P.points.find(p=>p.id===Number(c.dataset.point));
     selectPoint(pt?pt.id:null);
-    /* hanya titik MANUAL yang bisa diseret — titik kalkulator terpaku pd I1/I2 */
-    if(pt&&pt.source==='manual') dragId=pt.id;
+    if(pt&&pt.source==='manual'){ dragId=pt.id; const tip=$('planeTip'); if(tip) tip.classList.remove('show'); }
     e.preventDefault(); return;
   }
   if(e.target.hasAttribute&&e.target.hasAttribute('data-plot-bg')){
     const pos=pointerToPu(e);
     if(pos){ addPoint('manual',round2(pos.irt),round2(pos.iop),null,null); }
   }
-});
-window.addEventListener('pointermove',e=>{
+}
+function dragMove(e){
   if(dragId==null) return;
   const pt=P.points.find(p=>p.id===dragId); if(!pt) return;
   const pos=pointerToPu(e);
@@ -1330,8 +1328,11 @@ window.addEventListener('pointermove',e=>{
     /* seret = pasang posisi TERUKUR baru → balikkan I₁/I₂ sejati (ikut error kini) */
     const t=measuredToTrue(pt.irt,pt.iop,P.method,P.err); pt.i1=t.i1; pt.i2=t.i2;
     render(); }
-});
-window.addEventListener('pointerup',()=>{ dragId=null; });
+}
+function dragUp(){ dragId=null; }
+plane.addEventListener('pointerdown',planeDown);
+window.addEventListener('pointermove',dragMove);
+window.addEventListener('pointerup',dragUp);
 
 /* ---------- tabel titik ----------
    Kosong → SKELETON (baris .skel) supaya kerangka kartu tetap terlihat dan tinggi
@@ -1438,24 +1439,7 @@ function renderSide(){
        <div class="rgroup"><div class="rgroup-title">Keputusan</div>${rowsKep}</div>`
     : '';
 
-  /* formula KaTeX — hanya saat ada titik (nilai evaluasi); kosong jika tak ada */
-  const fo=els.formulaOut;
-  if(d){
-    fo.style.display='block';
-    const fromI=selPt.i1!=null&&selPt.i2!=null;
-    let eq;
-    if(fromI&&d.hasErr){
-      eq=`I_{1m}=${fmt(d.i1m)}\\,\\text{pu},\\quad I_{2m}=${fmt(d.i2m)}\\,\\text{pu}\\Rightarrow I_{op}=|I_{1m}-I_{2m}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`;
-    } else if(fromI){
-      eq=`I_{op}=|I_1-I_2|=|${fmt(selPt.i1)}-${fmt(selPt.i2)}|=${fmt(d.iop)}\\,\\text{pu},\\quad I_{rt}=${fmt(d.irt)}\\,\\text{pu}`;
-    } else {
-      eq=`I_{op}=${fmt(d.iop)}\\,\\text{pu} > ${fmt(d.thr)}\\,\\text{pu}=f(I_{rt})`;
-    }
-    if(typeof katex==='function') katex.render(eq,fo,{displayMode:true,throwOnError:false});
-    else fo.textContent='Iop = '+fmt(d.iop)+' pu · Irt = '+fmt(d.irt)+' pu';
-  } else {
-    fo.style.display='none'; fo.innerHTML='';
-  }
+
 }
 /* klik titik (tabel/plot) → muat I₁/I₂-nya ke Kalkulator arus (SEMUA titik kini
    membawa I₁/I₂ — manual hasil balikan measuredToTrue); tombol jadi 'Perbarui titik
@@ -1551,20 +1535,59 @@ function planeHoverPos(e){
   if(px<map.padL||px>map.padL+map.plotW||py<map.padT||py>map.padT+map.plotH) return null;
   return pointerToPu(e);
 }
-plane.addEventListener('pointermove',e=>{
+/* Posisi tooltip SAAT MENYERET titik: jangkar di SAMPING titik (bukan ikut kursor
+   yang tepat berada di atas titik) dgn gap tetap — tooltip tak pernah menutupi titik
+   yang sedang digeser. Pilih kuadran pertama yang muat penuh di dalam kartu;
+   fallback clamp pojok (bila tooltip lebih besar dari kartu). Murni → diuji
+   tools/ui.test.js. */
+function dragTipPos(px,py,tipW,tipH,boxW,boxH,gap){
+  const g=gap||14;
+  const cand=[
+    {x:px+g,      y:py+g},          // kanan-bawah
+    {x:px-g-tipW, y:py+g},          // kiri-bawah
+    {x:px+g,      y:py-g-tipH},     // kanan-atas
+    {x:px-g-tipW, y:py-g-tipH}      // kiri-atas
+  ];
+  for(const c of cand){
+    if(c.x>=4&&c.y>=4&&c.x+tipW<=boxW-4&&c.y+tipH<=boxH-4) return c;
+  }
+  return {x:Math.max(4,Math.min(boxW-tipW-4,px+g)), y:Math.max(4,Math.min(boxH-tipH-4,py+g))};
+}
+function planeHoverMove(e){
   const tip=$('planeTip'); if(!tip) return;
+  const rect=plane.getBoundingClientRect();
+  const map=plane._map;
+  /* mode SERET: tooltip menunjukkan titik yg sedang digeser, dijangkarkan di samping
+     posisi kursor (= posisi titik) via dragTipPos — isi diambil dari titik itu */
+  if(dragId!=null&&map&&rect.width&&rect.height){
+    const pt=P.points.find(p=>p.id===dragId);
+    const d=pt?evaluatePoint(P,pt):null;
+    const pp=pointerToPu(e);
+    if(d&&pp){
+      const h={kind:'point', head:'titik uji · '+d.status, rows:[`Irt ${fmt(d.irt)} pu`,`Iop ${fmt(d.iop)} pu`]};
+      if(d.hasErr) h.rows.push(`sejati: Irt ${fmt(d.irtTrue)} · Iop ${fmt(d.iopTrue)} pu`);
+      renderTip(tip,h);
+      tip.classList.add('show');
+      const dims=planeDims();
+      const kx=rect.width/Math.max(dims.w,1), ky=rect.height/Math.max(dims.h,1);
+      const vx=map.padL+(pp.irt/map.xMax)*map.plotW, vy=map.padT+(1-pp.iop/map.yMax)*map.plotH;
+      const a=dragTipPos(vx*kx,vy*ky,tip.offsetWidth||200,tip.offsetHeight||60,rect.width,rect.height,14);
+      tip.style.left=a.x+'px'; tip.style.top=a.y+'px';
+      return;
+    }
+  }
   const pos=planeHoverPos(e);
-  const h=pos?hoverInfo(plane._map,pos.irt,pos.iop):null;
+  const h=pos?hoverInfo(map,pos.irt,pos.iop):null;
   if(!h){ tip.classList.remove('show'); return; }
   renderTip(tip,h);
   tip.classList.add('show');
-  const rect=plane.getBoundingClientRect();
   let lx=e.clientX-rect.left+16, ly=e.clientY-rect.top+14;
   const tw=tip.offsetWidth||200, th=tip.offsetHeight||60;
   if(lx+tw>rect.width-6) lx=Math.max(4,e.clientX-rect.left-tw-14);
   if(ly+th>rect.height-6) ly=Math.max(4,rect.height-th-8);
   tip.style.left=lx+'px'; tip.style.top=ly+'px';
-});
+}
+plane.addEventListener('pointermove',planeHoverMove);
 plane.addEventListener('pointerleave',()=>{ const tip=$('planeTip'); if(tip) tip.classList.remove('show'); });
 
 /* ---------- ikon "?" → tooltip panduan (#qTip) ----------
@@ -1681,7 +1704,8 @@ const API={
   applyErr, zeroErrors, runScenario, commitCalcAdd,
   applyObs, obsStop, obsPlay,
   renderPlane, setMethod, stopAnim, startAnim,
-  hoverInfo
+  hoverInfo, dragTipPos,
+  planeDown, dragMove, dragUp, planeHoverMove
 };
 </script>
 </body>

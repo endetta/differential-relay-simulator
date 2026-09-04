@@ -54,9 +54,10 @@ check('splash: #splash krem + judul + S H E V A + .wrap opacity 0', () => {
   contains(src, '#root.ready .wrap', 'css');
   contains(src, '@keyframes spUp', 'css');
 });
-check('KaTeX terpasang (CSS + JS CDN)', () => {
-  contains(src, 'katex.min.css', 'head');
-  contains(src, 'katex.min.js', 'head');
+check('footer rumus bawah DIHAPUS: #formulaOut, .formula-box & KaTeX tak ada di halaman', () => {
+  if (src.includes('formulaOut')) throw new Error('#formulaOut masih ada di src');
+  if (src.includes('formula-box')) throw new Error('.formula-box masih ada di src');
+  if (src.includes('katex') || src.includes('KaTeX')) throw new Error('KaTeX masih ada di src');
 });
 check('lock tinggi desktop ≥921×600 + scrollbar tipis params', () => {
   contains(src, 'min-width:921px', 'css');
@@ -433,6 +434,18 @@ check('kartu kanan: hero Irt/Iop (nilai utama di-highlight) + baris nilai lain',
   contains(src, '.readout .hero.trip{background:var(--red-soft)', 'tile Iop tinted status');
   contains(src, '.readout .hero .h-chip', 'css chip');
 });
+check('kartu kanan: footer Iop/Irt DIHAPUS — render tak menyentuh #formulaOut; nilai hanya di hero', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  if (E.formulaOut) throw new Error('#formulaOut masih diminta/diisi (footer dobel hero)');
+  const h = E.readout.innerHTML;
+  if (h.includes('Iop = ')) throw new Error('footer Iop masih dirender: …' + h.slice(-200));
+  if (h.includes('pu \u00b7 Irt')) throw new Error('footer dobel Iop/Irt masih ada: …' + h.slice(-200));
+  const nHero = (h.match(/<span class="h-v">/g) || []).length;
+  if (nHero !== 2) throw new Error('nilai Iop/Irt harus tepat 1x di hero, dapat ' + nHero);
+  if (h.indexOf('<span class="h-l">Iop — operasi</span>') < 0 || h.indexOf('<span class="h-l">Irt — restraint</span>') < 0)
+    throw new Error('hero Iop/Irt harus tetap ada');
+});
 
 /* ===== fitur: tooltip elemen (hanya yg digambar, dgn margin ±10 px) ===== */
 check('tooltip: markup .tip + id planeTip hadir', () => {
@@ -474,6 +487,78 @@ check('hoverInfo: garis pickup (0.5, 0.30) → kind pickup; area kosong → null
   if (!h.rows.join('|').includes('Iop 0.30 pu')) throw new Error('pickup 0.30: ' + h.rows);
   const empty = pub.hoverInfo(map, 1.0, 3.5);
   if (empty) throw new Error('area kosong harus null, dapat ' + empty.kind);
+});
+
+/* ===== revisi: tooltip vs seret titik — jangan menutupi titik yg digeser =====
+   Seam: handler drag/tooltip diekstrak sbg fungsi bernama (planeDown/dragMove/dragUp/
+   planeHoverMove) + helper murni dragTipPos (ekspor API). Harness diperluas utk
+   menangkap listener & memicu event (fireEl/fireWindow) → tes perilaku drag sungguhan. */
+function planeCenterPx(map){
+  return { px: map.padL + map.plotW / 2, py: map.padT + map.plotH / 2 };
+}
+function ptEvent(px, py, ptId){
+  const tgt = ptId != null
+    ? { closest: sel => sel === '[data-point]' ? { dataset: { point: String(ptId) } } : null, hasAttribute(){ return false; } }
+    : null;
+  return { clientX: px, clientY: py, preventDefault(){}, hasAttribute(){ return false; }, target: tgt };
+}
+check('dragTipPos (murni): kuadran pertama yg muat di samping titik (gap 14); fallback finite', () => {
+  clearPoints(); zeroErrors(); addPoint('manual', 1.0, 2.0, null, null); render();
+  const map = E.plane._map;
+  const { px, py } = planeCenterPx(map);
+  const a = pub.dragTipPos(px, py, 200, 60, 640, 440, 14);
+  if (a.x !== px + 14 || a.y !== py + 14) throw new Error('tengah → kuadran kanan-bawah harus dipilih: ' + JSON.stringify(a));
+  if (a.x + 200 > 636 || a.y + 60 > 436) throw new Error('tooltip harus muat penuh di kartu');
+  const b = pub.dragTipPos(620, 420, 200, 60, 640, 440, 14); // pojok kanan-bawah → kiri-atas
+  if (b.x !== 620 - 14 - 200 || b.y !== 420 - 14 - 60) throw new Error('kuadran kiri-atas utk pojok kanan-bawah: ' + JSON.stringify(b));
+  const c = pub.dragTipPos(300, 200, 700, 500, 640, 440, 14); // tooltip > kartu → fallback
+  if (!isFinite(c.x) || !isFinite(c.y)) throw new Error('fallback harus finite');
+});
+check('drag titik: tooltip tetap tampil tapi DI SAMPING titik (tak menutupi) selama digeser', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  const ptId = P.points[0].id;
+  const { px, py } = planeCenterPx(E.plane._map);
+  ctx.fireEl('plane', 'pointerdown', ptEvent(px, py, ptId));   // mulai seret
+  ctx.fireWindow('pointermove', ptEvent(px, py, null));        // titik mengikuti kursor
+  ctx.fireEl('plane', 'pointermove', ptEvent(px, py, null));   // tooltip saat drag
+  const tip = E.planeTip;
+  if (!tip.classList.contains('show')) throw new Error('tooltip harus tetap tampil selama drag');
+  const aX = parseFloat(tip.style.left), aY = parseFloat(tip.style.top);
+  if (!(aX >= 4 && aY >= 4 && aX + 200 <= 636 && aY + 60 <= 436)) throw new Error('tooltip harus muat di kartu');
+  const exp = pub.dragTipPos(px, py, 200, 60, 640, 440, 14);  // jangkar SAMPING titik (bukan ikut kursor +16/+14)
+  if (aX !== exp.x || aY !== exp.y) throw new Error('saat drag tooltip harus dijangkarkan dragTipPos (' + exp.x + ',' + exp.y + '), dapat ' + aX + ',' + aY);
+  const dx = aX - px, dy = aY - py;   // kuadran samping: terpisah penuh (gap) di kedua sumbu
+  const sepX = dx >= 13 || dx + 200 <= -13, sepY = dy >= 13 || dy + 60 <= -13;
+  if (!(sepX && sepY)) throw new Error('tooltip menutupi titik yg diseret: tooltip @' + aX + ',' + aY + ' titik @' + px + ',' + py);
+  if (!tip.innerHTML.includes('titik uji')) throw new Error('konten tooltip titik hilang');
+});
+check('mulai seret: tooltip hover disembunyikan dulu (tak sempat menutupi titik)', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();   // titik di (irt=1, iop=2) pu
+  const map = E.plane._map;
+  const ptId = P.points[0].id;
+  const px = map.padL + (1 / map.xMax) * map.plotW;      // px titik (bukan pusat plot)
+  const py = map.padT + (1 - 2 / map.yMax) * map.plotH;
+  ctx.fireEl('plane', 'pointermove', ptEvent(px, py, null));   // hover di atas titik → tooltip tampil
+  if (!E.planeTip.classList.contains('show')) throw new Error('tooltip hover harus tampil dulu');
+  ctx.fireEl('plane', 'pointerdown', ptEvent(px, py, ptId));   // mulai seret
+  if (E.planeTip.classList.contains('show')) throw new Error('tooltip hover harus disembunyikan saat seret mulai');
+});
+check('setelah seret selesai (pointerup): tooltip kembali ikut kursor (left = kursor+16)', () => {
+  clearPoints(); zeroErrors();
+  addPoint('manual', 1.0, 2.0, null, null); render();
+  const ptId = P.points[0].id;
+  const { px, py } = planeCenterPx(E.plane._map);
+  ctx.fireEl('plane', 'pointerdown', ptEvent(px, py, ptId));
+  ctx.fireWindow('pointermove', ptEvent(px, py, null));
+  ctx.fireEl('plane', 'pointermove', ptEvent(px, py, null));
+  ctx.fireWindow('pointerup', {});
+  ctx.fireEl('plane', 'pointermove', ptEvent(px, py, null));   // hover normal lagi
+  const tip = E.planeTip;
+  if (!tip.classList.contains('show')) throw new Error('tooltip harus tampil lagi setelah drag selesai');
+  const lx = parseFloat(tip.style.left);
+  if (Math.abs(lx - (px + 16)) > 1) throw new Error('setelah drag tooltip harus ikut kursor (left=' + (px + 16) + '), dapat ' + lx);
 });
 
 /* ===== revisi: tooltip hilang saat kursor lepas (bug hidden kalah CSS display) ===== */

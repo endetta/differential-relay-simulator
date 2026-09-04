@@ -52,8 +52,8 @@ Buka `differential_relay_simulator.html` langsung di browser (`file:///...`), at
 python -m http.server     # lalu browse
 ```
 
-Satu-satunya dependensi eksternal dari CDN: KaTeX (rumus) + Google Fonts — inti tetap
-jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
+Satu-satunya dependensi eksternal dari CDN: Google Fonts — inti tetap jalan tanpanya
+(font jatuh ke fallback sistem).
 
 ## Peta file
 
@@ -67,7 +67,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + measuredToTrue + toleransi 3-status + obs, 60 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (88 asersi). `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (93 asersi). `node tools/ui.test.js`. |
 | `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
@@ -128,16 +128,21 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 5. **Renderer**: `renderPlane` (SVG #plane adaptif, viewBox = ukuran elemen; grid 1-2-5,
    tick label ber-halo putih, poligon DAERAH TRIP/RESTRAIN, kurva, garis pickup
    putus-putus, marker BP, titik uji, titik+jejak animasi), `renderTable`, `renderSide`
-   (status box + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan` + formula
-   KaTeX; **tanpa** `.r-sum` & tanpa `#eduNote`), `renderWarnings`. Tooltip elemen
+   (status box + readout **nilai-langsung** 2 grup `Titik uji`/`Keputusan`; **tanpa**
+   `.r-sum`, tanpa `#eduNote` & tanpa footer rumus — blok `#formulaOut`/KaTeX DIHAPUS,
+   nilainya dobel dgn hero), `renderWarnings`. Tooltip elemen
    dirender ke `#planeTip` (di dalam `.plane-card`, ikut kursor) via `hoverInfo` —
    tampil via class `.show`, default `display:none` (jangan pakai attr `hidden`:
-   kalah oleh CSS `display`, tooltip jadi tidak pernah hilang); animasi masuk
-   `@keyframes tipIn` (restart hanya saat kelas status berubah) + aksen warna status.
+   kalah oleh CSS `display`, tooltip jadi tidak pernah hilang); **saat titik diseret**
+   tooltip disembunyikan saat `pointerdown` lalu dijangkarkan DI SAMPING titik
+   (`dragTipPos`, gap 14, kuadran yg muat — tak menutupi titik yg digeser) dan
+   kembali ikut kursor setelah `pointerup`; animasi masuk `@keyframes tipIn` (restart
+   hanya saat kelas status berubah) + aksen warna status.
    `#qTip` (ikon "?") pakai animasi `@keyframes qIn` + caret. Legenda 4 item saja.
    `updateCalcPreview` juga mengisi `#errOut` (kartu error): `I₁ … → … pu · I₂ … → … pu`
    sebagai bukti visual bahwa error CT benar-benar diterapkan pada arus.
-6. **Interaksi plot**: klik area → tambah titik manual; seret lingkaran → pindah;
+6. **Interaksi plot**: klik area → tambah titik manual; seret lingkaran → pindah
+   (handler bernama `planeDown`/`dragMove`/`dragUp`, tooltip `planeHoverMove`);
    `pointerToPu` memakai `plane._map` + skala `clientWidth/viewBox`.
 7. **`render()`** master — satu-satunya entry point: hitung ulang status semua titik thd
    kurva saat ini → render plane/table/side/warnings/preview kalkulator.
@@ -191,8 +196,8 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ```bash
 node tools/model.test.js       # 60 asersi literals model (PRD §5 + error + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 88 asersi seam desain + perilaku UI (hoverInfo, legend,
-                               #    errOut, tooltip .show, scrollbar, collapse 4 kartu, obs)
+node tools/ui.test.js          # 93 asersi seam desain + perilaku UI (hoverInfo, legend,
+                               #    errOut, tooltip .show & vs-seret, scrollbar, collapse, obs)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```
 

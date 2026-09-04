@@ -22,8 +22,8 @@ python -m http.server
 npx serve
 ```
 
-Dependensi eksternal hanya dari CDN (KaTeX untuk rumus, Google Fonts) — fungsionalitas
-inti tetap berjalan tanpanya.
+Dependensi eksternal hanya dari CDN (Google Fonts) — fungsionalitas inti tetap
+berjalan tanpanya.
 
 ## Fitur
 
@@ -36,7 +36,8 @@ inti tetap berjalan tanpanya.
   → "Perbarui titik #N") — nilai terukur tampil langsung (label `Iop …` di plot +
   kolom **Sejati** di tabel)
 - **Tooltip interaktif**: arahkan kursor ke elemen plot (titik uji, marker breakpoint,
-  garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor
+  garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor; saat titik
+  diseret tooltip pindah ke samping titik (tidak pernah menutupinya)
 - **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio —
   **SEMUA titik ikut error** (titik klik dibalikkan ke I₁/I₂ sejati → geser error =
   titik bergeser real-time), titik **sejati vs titik terukur** ditandai langsung;
@@ -49,8 +50,9 @@ inti tetap berjalan tanpanya.
 - **Daftar titik uji**: tabel Irt/Iop terukur + kolom **Sejati**, badge status
   TRIP/AMBANG/RESTRAIN, margin (%), hapus, sorot, bersihkan
 - **Kartu kanan nilai-langsung**: kotak status + nilai utama sbg **hero** (Iop dulu,
-  tile ber-status: tint + aksen + chip TRIP/AMBANG/RESTRAIN; Irt netral) + formula
-  KaTeX — tanpa kalimat panjang; legenda plot sederhana (4 item); scrollbar tipis global
+  tile ber-status: tint + aksen + chip TRIP/AMBANG/RESTRAIN; Irt netral) + 2 grup
+  tabel — tanpa kalimat panjang & tanpa footer rumus dobel; legenda plot sederhana
+  (4 item); scrollbar tipis global
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
   (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding) — dengan titik
   TERPILIH, skenario dipasang ke titik itu (bergeser real-time); animasi sapuan
@@ -72,7 +74,7 @@ inti tetap berjalan tanpanya.
 ```bash
 node tools/model.test.js       # model: threshold, status, margin, error CT, measuredToTrue, toleransi, obs (60 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + obs + titik-ikut-error (88 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (93 asersi)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 ```
 
