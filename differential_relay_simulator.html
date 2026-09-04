@@ -407,7 +407,7 @@
 
       <div class="plane-row">
         <div class="plane-card">
-          <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;"></svg>
+          <svg id="plane" viewBox="0 0 640 440" width="100%" style="display:block;cursor:crosshair;" role="img" aria-label="Diagram Iop-Irt: arus operasi vs arus restraint"></svg>
           <div class="tip" id="planeTip"></div>
           <div class="legend" id="legend"></div>
         </div>
@@ -872,10 +872,12 @@ function addPoint(source,irt,iop,i1,i2){
 }
 function removePoint(id){ P.points=P.points.filter(p=>p.id!==id);
   if(P.selectedId===id) P.selectedId=null;
+  if(P.editId===id){ P.editId=null; const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot'; }  // audit B3
   render(); }
 function clearPoints(){ P.points=[]; P.selectedId=null; P.editId=null; P.probe=null; P.probeTrace=null;
   P.obs.on=false; P.obs.play=false;
   if(obsTimer){ clearInterval(obsTimer); obsTimer=null; }
+  stopAnim($('animateBtn'));        // animasi sapuan ikut berhenti (audit B1)
   const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot';
   render(); }
 $('clearPoints').addEventListener('click',clearPoints);
@@ -985,7 +987,7 @@ function syncObsDom(){
   if(db){ db.textContent='Saturasi CT dinamis: '+(P.obs.dyn?'AKTIF':'NONAKTIF'); db.classList.toggle('on',P.obs.dyn); }
 }
 function applyObs(v){
-  if(v!=null) P.obs.I=clamp(Number(v),0.2,12);
+  if(v!=null){ const n=Number(v); if(Number.isNaN(n)) return; P.obs.I=clamp(n,0.2,12); }
   P.obs.on=true;
   syncObsDom();
   if(animTimer) stopAnim(null);      // eksklusif dgn animasi sapuan
@@ -1033,13 +1035,14 @@ document.querySelectorAll('#obsPreset button').forEach(b=>b.addEventListener('cl
 $('obsDyn').addEventListener('click',()=>{ P.obs.dyn=!P.obs.dyn; syncObsDom(); applyObs(); });
 $('obsPlay').addEventListener('click',obsPlay);
 
-/* ---------- animasi sapuan: eksternal → internal ---------- */
-$('animateBtn').addEventListener('click',()=>{
-  const btn=$('animateBtn');
-  if(animTimer){ stopAnim(btn); return; }
+/* ---------- animasi sapuan: eksternal → internal ----------
+   startAnim() dipisahkan agar bisa dihentikan dari luar (mis. clearPoints) dan
+   diuji — tombol hanya toggle start/stop. */
+function startAnim(){
   if(obsTimer) obsStop();           // eksklusif dgn mode pengamatan
   P.obs.on=false; P.obs.play=false;
-  btn.textContent='⏸ Hentikan animasi'; btn.classList.add('playing');
+  const btn=$('animateBtn');
+  if(btn){ btn.textContent='⏸ Hentikan animasi'; btn.classList.add('playing'); }
   P.probeTrace=[];
   const I1=4.0;
   let t=0;
@@ -1057,6 +1060,11 @@ $('animateBtn').addEventListener('click',()=>{
     }
     render();
   },40);
+}
+$('animateBtn').addEventListener('click',()=>{
+  const btn=$('animateBtn');
+  if(animTimer){ stopAnim(btn); return; }
+  startAnim();
 });
 function stopAnim(btn){
   if(!animTimer) return;
@@ -1076,7 +1084,8 @@ function syncCollapsedCentering(){
   const all=cards.length>0&&Array.from(cards).every(c=>!!S.ui.collapsed[c.dataset.card]);
   $('paramsPanel').classList.toggle('all-collapsed',all);
 }
-document.querySelectorAll('.card-h').forEach(h=>h.addEventListener('click',()=>{
+document.querySelectorAll('.card-h').forEach(h=>h.addEventListener('click',e=>{
+  if(e.target&&e.target.closest&&e.target.closest('.q')) return;   // ikon bantuan: jangan collapse (audit U1)
   const card=h.parentElement.dataset.card;
   setCollapsed(card,!S.ui.collapsed[card]);
 }));
@@ -1101,10 +1110,6 @@ function planeDims(){
   if(cw>10&&ch>10) return {w:Math.round(cw),h:Math.round(ch)};
   return FALLBACK;
 }
-const X=m=>m.padL+(m.irt/m.m.xMax)*m.plotW;
-const Y=m=>m.padT+(1-m.iop/m.m.yMax)*m.plotH;
-const px2=(x)=>x.toFixed(2);
-
 function renderPlane(){
   const m=P;
   const dims=planeDims();
@@ -1479,9 +1484,10 @@ function planeHoverPos(e){
   const rect=plane.getBoundingClientRect(); if(!rect.width||!rect.height) return null;
   const dims=planeDims();
   const px=(e.clientX-rect.left)*dims.w/rect.width, py=(e.clientY-rect.top)*dims.h/rect.height;
+  /* di luar area plot (margin) → tanpa tooltip; konversi px→pu dipinjam dari
+     pointerToPu (satu sumber, audit C2) */
   if(px<map.padL||px>map.padL+map.plotW||py<map.padT||py>map.padT+map.plotH) return null;
-  return { irt:clamp(((px-map.padL)/map.plotW)*map.xMax,0,map.xMax),
-           iop:clamp(map.yMax*(1-(py-map.padT)/map.plotH),0,map.yMax) };
+  return pointerToPu(e);
 }
 plane.addEventListener('pointermove',e=>{
   const tip=$('planeTip'); if(!tip) return;
@@ -1612,7 +1618,7 @@ const API={
   addPoint, selectPoint, clearPoints, removePoint,
   applyErr, zeroErrors, runScenario, commitCalcAdd,
   applyObs, obsStop, obsPlay,
-  renderPlane, setMethod, stopAnim,
+  renderPlane, setMethod, stopAnim, startAnim,
   hoverInfo
 };
 </script>

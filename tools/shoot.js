@@ -220,7 +220,7 @@ const VIEWS = [
       plane.dispatchEvent(new PointerEvent('pointermove', { clientX: rect.left + px, clientY: rect.top + py, bubbles: true })); })();` },
   { name: 'qtip', w: 1440, h: 1000, wait: 300, js: `
     document.querySelector('#errNoteQ').dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));` },
-  { name: 'collapsed', w: 1440, h: 1000, js: `
+  { name: 'collapsed', w: 1440, h: 1000, wait: 600, js: `   // tunggu transisi collapse 0.35s selesai
     document.querySelectorAll('.card-h').forEach((h) => h.click());
     syncCollapsedCentering();` },
   { name: 'mobile', w: 900, h: 840, js: '' },

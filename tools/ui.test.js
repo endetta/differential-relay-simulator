@@ -645,6 +645,49 @@ check('obsDyn nonaktif = error statis di arus berapa pun', () => {
   render();
 });
 
+/* ===== hasil audit: fix B1–B3 + U1 + C1–C2 (regresi) ===== */
+check('B1: clearPoints menghentikan animasi sapuan (stopAnim dipanggil, tombol kembali)', () => {
+  pub.startAnim();
+  if (E.animateBtn.textContent !== '⏸ Hentikan animasi') throw new Error('animasi harus jalan: ' + E.animateBtn.textContent);
+  pub.clearPoints();
+  if (E.animateBtn.textContent !== '▶ Animasikan: eksternal → internal') throw new Error('tombol harus kembali: ' + E.animateBtn.textContent);
+  if (pub.P.probe != null) throw new Error('probe harus null setelah clear');
+  pub.stopAnim();   // no-op aman bila animTimer sudah null
+});
+check('B2: applyObs(NaN) ditolak — state & label tak jadi NaN', () => {
+  pub.P.obs.on = false; pub.P.probe = null;
+  pub.applyObs(1);
+  const before = pub.P.obs.I;
+  pub.applyObs(NaN);
+  if (Math.abs(pub.P.obs.I - before) > 1e-9) throw new Error('I harus tetap ' + before + ': ' + pub.P.obs.I);
+  if (E.obsIv.textContent.includes('NaN')) throw new Error('label NaN: ' + E.obsIv.textContent);
+  pub.applyObs(6); pub.P.obs.on = false; pub.P.probe = null; render();
+});
+check('B3: removePoint membersihkan mode edit (editId + tombol)', () => {
+  clearPoints(); P.editId = null;
+  addPoint('calc', 0, 0, 4, 2);            // auto-select → mode edit
+  if (P.editId == null) throw new Error('harus mode edit dulu');
+  if (E.addPointBtn.textContent !== 'Perbarui titik #1') throw new Error('tombol edit: ' + E.addPointBtn.textContent);
+  pub.removePoint(P.points[0].id);
+  if (P.editId != null) throw new Error('editId harus dibersihkan: ' + P.editId);
+  if (E.addPointBtn.textContent !== 'Tambahkan titik ke plot') throw new Error('tombol harus kembali: ' + E.addPointBtn.textContent);
+});
+check('U1: klik ikon ? di heading kartu tidak boleh collapse (guard .q di handler card-h)', () => {
+  const m = src.match(/\.card-h'\)\.forEach\(h=>h\.addEventListener\('click',e=>\{[\s\S]*?setCollapsed\(card,!S\.ui\.collapsed\[card\]/);
+  if (!m) throw new Error('handler card-h tidak ditemukan');
+  contains(m[0], "closest('.q')", 'guard ikon bantuan');
+  contains(m[0], 'return', 'abaikan klik di ikon ?');
+});
+check('C1: helper lama X/Y/px2 dihapus (dead code)', () => {
+  if (src.includes('const X=m=>')) throw new Error('X masih ada');
+  if (src.includes('const Y=m=>')) throw new Error('Y masih ada');
+  if (src.includes('const px2=')) throw new Error('px2 masih ada');
+});
+check('C2: planeHoverPos memakai pointerToPu (satu sumber konversi px→pu)', () => {
+  contains(src, 'return pointerToPu(e);', 'planeHoverPos delegasi ke pointerToPu');
+  contains(src, 'role="img" aria-label="Diagram Iop-Irt', 'svg punya role img (a11y)');
+});
+
 /* ===== revisi: tanda tanya yatim pindah ke heading terkait (.qrow DIHAPUS) ===== */
 check('tanda tanya: .qrow yatim DIHAPUS — errNoteQ di card-h err, slope-last di slope-h', () => {
   if (src.includes('class="qrow"')) throw new Error('.qrow masih ada (ikon yatim)');
