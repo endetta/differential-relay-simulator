@@ -42,7 +42,10 @@ menghitung titik dari arus dua sisi (I1, I2).
   real-time); **nilai terukur tampil langsung** (label `Iop …` di plot + kolom
   `Sejati` tabel); **mode pengamatan arus sistem** (sweep through-current + saturasi
   dinamis, kartu ke-4); **default error CT non-nol** (5%/5%/+10% = CT 5P + tap, bukan
-  0).
+  0); **batas fisis** Iop ≤ k·Irt (k=2 average / k=1 maximum, tempat I₂ → 0)
+  digambar di plot (`data-feas-line`/`data-feas-zone`/label) + klik/seret titik
+  **dijepit** `clampFeasible` ke ray (titik berhenti tepat di batas, tak meluncur
+  naik) + tooltip `feas-void` di zona mustahil (butuh I₂ < 0).
 
 ## Menjalankan
 
@@ -67,7 +70,7 @@ Satu-satunya dependensi eksternal dari CDN: Google Fonts — inti tetap jalan ta
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + measuredToTrue + toleransi 3-status + obs, 60 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (97 asersi). `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (102 asersi). `node tools/ui.test.js`. |
 | `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`; `--check` = verifikasi di Chrome: gerak collapse anti-blink + chip hero utuh. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
@@ -196,8 +199,8 @@ Satu-satunya dependensi eksternal dari CDN: Google Fonts — inti tetap jalan ta
 ```bash
 node tools/model.test.js       # 60 asersi literals model (PRD §5 + error + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 97 asersi seam desain + perilaku UI (hoverInfo, legend,
-                               #    errOut, tooltip .show & vs-seret, scrollbar, collapse, obs)
+node tools/ui.test.js          # 102 asersi seam desain + perilaku UI (hoverInfo, legend,
+                               #    errOut, tooltip .show & vs-seret, batas fisis, obs)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 node tools/shoot.js --check    # di Chrome: gerak collapse anti-blink + chip hero utuh
 ```

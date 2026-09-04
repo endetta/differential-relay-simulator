@@ -505,13 +505,19 @@ check('hoverInfo: kurva ambang di (3, 1.2) → kind curve + ambang 1.15', () => 
   if (!h.rows.join('|').includes('ambang 1.15 pu')) throw new Error('ambang harus 1.15: ' + h.rows);
   if (!h.rows.join('|').includes('di atas kurva')) throw new Error('kursor di atas kurva');
 });
-check('hoverInfo: garis pickup (0.5, 0.30) → kind pickup; area kosong → null', () => {
+check('hoverInfo: garis pickup (0.5, 0.30) → kind pickup; area kosong (dlm wedge) → null', () => {
   const map = E.plane._map;
   const h = pub.hoverInfo(map, 0.5, 0.30);
   if (!h || h.kind !== 'pickup') throw new Error('harus kind pickup, dapat ' + (h && h.kind));
   if (!h.rows.join('|').includes('Iop 0.30 pu')) throw new Error('pickup 0.30: ' + h.rows);
-  const empty = pub.hoverInfo(map, 1.0, 3.5);
-  if (empty) throw new Error('area kosong harus null, dapat ' + empty.kind);
+  const empty = pub.hoverInfo(map, 1.0, 0.8);       // di atas kurva tapi DI BAWAH ray fisis
+  if (empty) throw new Error('area kosong (dalam wedge) harus null, dapat ' + (empty && empty.kind));
+});
+check('hoverInfo: zona mustahil iop > k·irt → kind feas-void (butuh I₂ < 0)', () => {
+  const map = E.plane._map;
+  const v = pub.hoverInfo(map, 1.0, 3.5);           // ray fisis avg @1 = 2.0 → 3.5 di luarnya
+  if (!v || v.kind !== 'feas-void') throw new Error('harus kind feas-void, dapat ' + (v && v.kind));
+  if (!v.rows.join('|').includes('I₂ < 0')) throw new Error('baris penjelas: ' + v.rows);
 });
 
 /* ===== revisi: tooltip vs seret titik — jangan menutupi titik yg digeser =====
@@ -911,6 +917,70 @@ check('hoverInfo bermanfaat: TRIP → baris margin %; AMBANG → catatan pita; k
   if (!c || c.kind !== 'curve') throw new Error('harus curve: ' + (c && c.kind));
   if (!c.rows.join('|').includes('pita 0.92…1.38 pu')) throw new Error('baris pita kurva: ' + c.rows);
   P.tol = 10; render();
+});
+
+/* ===== revisi: batas fisis Iop ≤ k·Irt TERLIHAT & klik/seret DIJEPIT (bukan macet
+   diam-diam di ray — bug "batas invisible" dari titik 0) =====
+   Ray iop = k·irt (k=2 average / k=1 maximum) = tempat I₂ → 0; di atasnya mustahil
+   utk arus ≥ 0. Klik & seret dijepit clampFeasible → titik berhenti TEPAT di ray
+   (ikuti kursor sampai batas, tanpa meluncur naik seperti perilaku lama). */
+check('clampFeasible (murni): jepit iop ke ray k·irt (average k=2, maximum k=1); fallback ≥0', () => {
+  const c = pub.clampFeasible;
+  if (typeof c !== 'function') throw new Error('clampFeasible tidak diekspor API');
+  const a = c(2, 5, 'average'); if (a.irt !== 2 || a.iop !== 4) throw new Error('(2,5) avg harus (2,4): ' + JSON.stringify(a));
+  const b = c(3, 3, 'average'); if (b.irt !== 3 || b.iop !== 3) throw new Error('(3,3) avg harus tetap: ' + JSON.stringify(b));
+  const z = c(0, 1, 'average'); if (z.irt !== 0 || z.iop !== 0) throw new Error('(0,1) avg harus (0,0): ' + JSON.stringify(z));
+  const m = c(2, 5, 'maximum'); if (m.irt !== 2 || m.iop !== 2) throw new Error('(2,5) max harus (2,2): ' + JSON.stringify(m));
+  const d = c(1, 0.5, 'average'); if (d.iop !== 0.5) throw new Error('di dalam wedge harus dibiarkan: ' + JSON.stringify(d));
+});
+check('SVG plane: batas fisis DIGAMBAR (ray putus data-feas-line + zona + label I₂ = 0)', () => {
+  clearPoints(); zeroErrors(); P.method = 'average'; render();
+  contains(svg(), 'data-feas-line', 'ray batas fisis');
+  contains(svg(), 'data-feas-zone', 'zona mustahil');
+  contains(svg(), 'batas fisis (I₂ = 0)', 'label batas');
+  P.method = 'maximum'; render();                 // ray k=1 juga digambar
+  contains(svg(), 'data-feas-line', 'ray batas fisis (maximum)');
+  P.method = 'average'; render();
+});
+check('klik di zona mustahil (iop > 2·irt) → titik TEPAT di ray (iop=2·irt), tak meluncur naik', () => {
+  clearPoints(); zeroErrors(); P.method = 'average'; P.tol = 0; P.pickup = 0.3;
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  render();
+  const map = E.plane._map;
+  const px = map.padL + (1.0 / map.xMax) * map.plotW;     // irt 1.0
+  const py = map.padT + (1 - 2.6 / map.yMax) * map.plotH; // iop 2.6 > ray 2·1.0
+  ctx.fireEl('plane', 'pointerdown', {
+    clientX: px, clientY: py, preventDefault(){},
+    target: { closest: () => null, hasAttribute: k => k === 'data-plot-bg' },
+  });
+  const pt = P.points[P.points.length - 1];
+  if (!pt || pt.source !== 'manual') throw new Error('titik manual harus terbentuk');
+  const d = evaluatePoint(P, pt);
+  if (Math.abs(d.irt - 1.0) > 1e-6 || Math.abs(d.iop - 2.0) > 1e-6)
+    throw new Error('klik void harus dijepit ke ray (1,2), dapat irt=' + d.irt + ' iop=' + d.iop);
+});
+check('seret titik: dijepit ke ray fisis — tak bisa masuk zona mustahil & tak meluncur (bug fix)', () => {
+  clearPoints(); zeroErrors(); P.method = 'average'; P.tol = 0; P.pickup = 0.3;
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  addPoint('manual', 1.0, 1.0, null, null); render();
+  const ptId = P.points[0].id;
+  const map = E.plane._map;
+  const px1 = map.padL + (1.0 / map.xMax) * map.plotW;
+  const py1 = map.padT + (1 - 1.0 / map.yMax) * map.plotH;
+  ctx.fireEl('plane', 'pointerdown', ptEvent(px1, py1, ptId));   // mulai seret di (1,1)
+  const px2 = map.padL + (1.0 / map.xMax) * map.plotW;           // geser ke (1, 2.6)
+  const py2 = map.padT + (1 - 2.6 / map.yMax) * map.plotH;
+  ctx.fireWindow('pointermove', ptEvent(px2, py2, null));
+  let d = evaluatePoint(P, P.points[0]);
+  if (Math.abs(d.irt - 1.0) > 1e-6 || Math.abs(d.iop - 2.0) > 1e-6)
+    throw new Error('harus dijepit di ray (1,2) — bukan (1,2.6) & bukan meluncur: irt=' + d.irt + ' iop=' + d.iop);
+  if (Math.abs(P.points[0].iop - 2.0) > 1e-6) throw new Error('pt.iop tersimpan harus 2.0 (sinkron dgn gambar): ' + P.points[0].iop);
+  const px3 = map.padL + (1.0 / map.xMax) * map.plotW;           // kembali ke dalam wedge (1, 0.5)
+  const py3 = map.padT + (1 - 0.5 / map.yMax) * map.plotH;
+  ctx.fireWindow('pointermove', ptEvent(px3, py3, null));
+  d = evaluatePoint(P, P.points[0]);
+  if (Math.abs(d.iop - 0.5) > 1e-6) throw new Error('kembali ke dalam wedge harus mengikuti kursor: iop=' + d.iop);
+  ctx.fireWindow('pointerup', {});
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

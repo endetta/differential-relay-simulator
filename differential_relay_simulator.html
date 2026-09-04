@@ -716,6 +716,15 @@ function measuredToTrue(irt,iop,method,err){
   else { i1m=Math.max(0,irt+iop/2); i2m=Math.max(0,irt-iop/2); }
   return { i1:i1m/(1-c1/100), i2:i2m/((1-c2/100)*(1+mm/100)) };
 }
+/* Batas fisis titik uji: dgn arus ≥ 0, Iop=|i1−i2| ≤ k·irt dengan k=2 utk restraint
+   rata-rata ((i1+i2)/2) dan k=1 utk maximum. Di atas ray iop = k·irt mustahil (butuh
+   I₂ < 0). Ray itu JELAS terlihat di plot & klik/seret titik DIJEPIT ke sini
+   (clampFeasible) — titik berhenti tepat di ray mengikuti kursor, tak meluncur naik. */
+function feasSlope(method){ return method==='maximum'?1:2; }
+function clampFeasible(irt,iop,method){
+  const ir=Math.max(0,irt);
+  return { irt:ir, iop:Math.min(Math.max(0,iop),feasSlope(method)*ir) };
+}
 /* ===== mode pengamatan arus sistem (through-sweep I₁=I₂=I) — murni & diuji.
    Error proporsional statis: titik terukur bergerak LURUS (rasio Iop/Irt konstan dlm
    satu segmen slope) → arus besar TIDAK mendekatkan trip. Saturasi DINAMIS (opsional):
@@ -1235,6 +1244,13 @@ function renderPlane(){
   const bandPoly=tolOn?toPoly([...bandLowPts,...bandPts.slice().reverse()]):'';
   const bandTop=tolOn?bandPts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' '):'';
   const bandLow=tolOn?bandLowPts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' '):'';
+  /* batas fisis Iop ≤ k·irt (k=2 average / k=1 maximum): ray tempat I₂ → 0, zona
+     di atasnya mustahil utk arus ≥ 0 — digambar agar "dinding" drag tidak tak terlihat */
+  const feasK=feasSlope(m.method);
+  const feasX=Math.min(xMax,yMax/feasK);
+  const feasZone=`<polygon points="${toPoly([[0,0],[0,yMax],[xMax,yMax],[xMax,feasK*xMax]])}" fill="var(--ink-soft)" opacity="0.07" clip-path="url(#pc)" data-feas-zone/>`;
+  const feasLine=`<line x1="${Xx(0).toFixed(2)}" y1="${Yy(0).toFixed(2)}" x2="${Xx(feasX).toFixed(2)}" y2="${Yy(feasK*feasX).toFixed(2)}" stroke="var(--ink-soft)" stroke-width="1.2" stroke-dasharray="2 5" opacity="0.7" clip-path="url(#pc)" data-feas-line/>
+    <text x="${(Xx(feasX*0.5)+7).toFixed(2)}" y="${(Yy(feasK*feasX*0.5)-7).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9" fill="var(--ink-soft)" opacity="0.95" stroke="var(--surface)" stroke-width="3" paint-order="stroke" data-feas-lbl>batas fisis (I₂ = 0)</text>`;
 
   /* kurva ambang + garis pickup putus-putus + marker breakpoint */
   const curvePoly=pts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
@@ -1302,6 +1318,7 @@ function renderPlane(){
     <polygon points="${toPoly(restPts)}" fill="var(--green-soft)" opacity="0.55" clip-path="url(#pc)"/>
     ${bandPoly?`<polygon points="${bandPoly}" fill="var(--copper-soft)" opacity="0.85" clip-path="url(#pc)" data-band/>`:''}
     <polygon points="${toPoly(tripPts)}" fill="var(--red-soft)" opacity="0.5" clip-path="url(#pc)"/>
+    ${feasZone}
     ${pickupDash}
     <text x="${padL+5}" y="${(pickupY-5).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9.5" fill="var(--copper)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">pickup</text>
     <polyline points="${curvePoly}" fill="none" stroke="var(--ink)" stroke-width="2.1" stroke-linejoin="round" clip-path="url(#pc)"/>
@@ -1315,6 +1332,7 @@ function renderPlane(){
     ${tickX}${tickY}
     <text x="${padL+plotW/2}" y="${dims.h-8}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)">Irt — arus restraint (pu)</text>
     <text x="13" y="${padT+plotH/2}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="var(--ink)" transform="rotate(-90 13 ${padT+plotH/2})">Iop — arus operasi (pu)</text>
+    ${feasLine}
     ${errStr}${ptsStr}`;
 
   /* legenda — ringkas: warna status titik (TRIP/AMBANG/RESTRAIN) + titik sejati */
@@ -1352,14 +1370,16 @@ function planeDown(e){
   }
   if(e.target.hasAttribute&&e.target.hasAttribute('data-plot-bg')){
     const pos=pointerToPu(e);
-    if(pos){ addPoint('manual',round2(pos.irt),round2(pos.iop),null,null); }
+    if(pos){ const f=clampFeasible(pos.irt,pos.iop,P.method);
+      addPoint('manual',round2(f.irt),round2(f.iop),null,null); }
   }
 }
 function dragMove(e){
   if(dragId==null) return;
   const pt=P.points.find(p=>p.id===dragId); if(!pt) return;
   const pos=pointerToPu(e);
-  if(pos){ pt.irt=round2(pos.irt); pt.iop=round2(pos.iop);
+  if(pos){ const f=clampFeasible(pos.irt,pos.iop,P.method);
+    pt.irt=round2(f.irt); pt.iop=round2(f.iop);
     /* seret = pasang posisi TERUKUR baru → balikkan I₁/I₂ sejati (ikut error kini) */
     const t=measuredToTrue(pt.irt,pt.iop,P.method,P.err); pt.i1=t.i1; pt.i2=t.i2;
     render(); }
@@ -1549,6 +1569,9 @@ function hoverInfo(map, irt, iop){
     if((Number(m.tol)||0)>0) rows.push(`pita ${fmt(thresholdLow(m,irt))}…${fmt(thresholdTol(m,irt))} pu`);
     return {kind:'curve', head:'kurva ambang', rows};
   }
+  /* zona mustahil: iop > k·irt (butuh I₂ < 0) — jelaskan, bukan diam-diam tak ada apa-apa */
+  if(iop>feasSlope(m.method)*irt+1e-9)
+    return {kind:'feas-void', head:'di luar daerah fisis', rows:[`I₂ < 0 — butuh arus keluar zona (iop > ${fmt(feasSlope(m.method)*irt)} pu)`]};
   return null;
 }
 function renderTip(tip,h){
@@ -1733,7 +1756,7 @@ const API={
   thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair, measuredToTrue,
   satFactor, obsEff, obsPath,
   computeDomain, curveSample, slopeLine,
-  slopeList, SL,
+  slopeList, SL, feasSlope, clampFeasible,
   syncCollapsedCentering,
   addPoint, selectPoint, clearPoints, removePoint,
   applyErr, zeroErrors, runScenario, commitCalcAdd,

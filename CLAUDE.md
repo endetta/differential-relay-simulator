@@ -44,7 +44,7 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 60 asersi literals model murni (PRD §5 + error CT + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 97 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
+node tools/ui.test.js          # 102 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret + batas fisis)
 node tools/shoot.js --check    # verifikasi di Chrome: gerak collapse anti-blink + chip hero utuh
 ```
 
@@ -170,7 +170,17 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    gotcha di bawah). Seret titik = handler BERNama `planeDown`/`dragMove`/`dragUp`
    (juga `planeHoverMove` utk tooltip; di-`addEventListener` & diekspor di `API`)
    — diuji tools/ui.test.js lewat harness yang bisa memicu event (`fireEl`/
-   `fireWindow`). **Edit titik 'calc'**: klik titik (tabel/plot) → `selectPoint`
+   `fireWindow`). **Batas fisis titik uji**: dgn arus ≥ 0 berlaku Iop = |i1−i2| ≤
+   k·irt (k=2 utk restraint rata-rata, k=1 utk maximum) — di ATAS ray itu mustahil
+   (butuh I₂ < 0). Ray `iop=k·irt` DIGAMBAR di plot (`data-feas-line` putus-putus +
+   zona `data-feas-zone` + label `batas fisis (I₂ = 0)`; ikut metode restraint,
+   berubah saat `setMethod`) dan **klik/seret titik DIJEPIT** ke ray oleh helper murni
+   `clampFeasible(irt,iop,method)`/`feasSlope(method)` (ekspor `API`) — titik berhenti
+   TEPAT di ray mengikuti kursor (tidak meluncur naik seperti perilaku lama
+   `measuredToTrue` mematok I₂=0: posisi tersimpan & gambar tak sinkron — bug "batas
+   invisible" dari titik 0). `hoverInfo` di zona mustahil mengembalikan
+   `{kind:'feas-void', …}` (tooltip menjelaskan butuh I₂ < 0).
+   **Edit titik 'calc'**: klik titik (tabel/plot) → `selectPoint`
    memuat I1/I2-nya ke `#i1/#i2` + set `P.editId` (tombol `#addPointBtn` jadi
    "Perbarui titik #N"); `commitCalcAdd` memperbarui titik itu — tanpa edit ia
    menambah titik baru.

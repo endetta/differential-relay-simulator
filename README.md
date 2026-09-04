@@ -34,7 +34,9 @@ berjalan tanpanya.
 - **Titik uji**: klik langsung di plot / seret untuk memindah; hitung dari **I1 & I2**
   lewat kalkulator arus; **SEMUA titik bisa diedit ulang** (klik titik → I1/I2 termuat
   → "Perbarui titik #N") — nilai terukur tampil langsung (label `Iop …` di plot +
-  kolom **Sejati** di tabel)
+  kolom **Sejati** di tabel); **batas fisis** Iop ≤ k·Irt (k=2 average / k=1 maximum)
+  digambar jelas (ray putus + label `I₂ = 0`) dan klik/seret **dijepit** ke batas —
+  tak ada "dinding tak terlihat"
 - **Tooltip interaktif**: arahkan kursor ke elemen plot (titik uji, marker breakpoint,
   garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor; saat titik
   diseret tooltip pindah ke samping titik (tidak pernah menutupinya)
@@ -75,7 +77,7 @@ berjalan tanpanya.
 ```bash
 node tools/model.test.js       # model: threshold, status, margin, error CT, measuredToTrue, toleransi, obs (60 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (97 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error + batas fisis (102 asersi)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
 node tools/shoot.js --check    # verifikasi di Chrome: gerak collapse anti-blink + chip hero utuh
 ```
