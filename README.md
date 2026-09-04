@@ -75,9 +75,9 @@ berjalan tanpanya.
 ```bash
 node tools/model.test.js       # model: threshold, status, margin, error CT, measuredToTrue, toleransi, obs (60 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (94 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (97 asersi)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
-node tools/shoot.js --check    # verifikasi gerak collapse anti-blink (Chrome sungguhan)
+node tools/shoot.js --check    # verifikasi di Chrome: gerak collapse anti-blink + chip hero utuh
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

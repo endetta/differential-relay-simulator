@@ -201,7 +201,9 @@ const REPORT_JS = `(() => {
         chipLeft: cb ? +cb.left.toFixed(1) : null, chipRight: cb ? +cb.right.toFixed(1) : null,
         labelRight: lb ? +lb.right.toFixed(1) : null,
         chipClipped: cb ? cb.right > contentR + 0.5 : false,
-        labelHitsChip: (lb && cb) ? lb.right > cb.left + 0.5 : false };
+        /* label & chip boleh sepaket X bila beda baris (chip kini baris sendiri di bawah label) */
+        sameRow: (lb && cb) ? lb.bottom > cb.top + 0.5 && cb.bottom > lb.top + 0.5 : false,
+        labelHitsChip: (lb && cb) ? (lb.bottom > cb.top + 0.5 && cb.bottom > lb.top + 0.5) && lb.right > cb.left + 0.5 : false };
     }),
     paramsPanel: pp ? { clientH: pp.clientHeight, scrollH: pp.scrollHeight,
       scrollable: pp.scrollHeight > pp.clientHeight + 1 } : null,
@@ -311,6 +313,24 @@ async function runCollapseChecks(cdp) {
   return A;
 }
 
+/* ---------- check chip status hero (tile Iop): tak boleh terpotong di kartu kanan ----------
+   Tiga keadaan (TRIP/AMBANG/RESTRAIN) di-lebar desktop; probe report.heroTiles
+   menandai chipClipped / labelHitsChip. Semua chip harus utuh di dalam tile. */
+async function runChipChecks(cdp) {
+  const names = ['points', 'band', 'obs-lin'];     // chip TRIP, AMBANG, RESTRAIN
+  const results = [];
+  for (const name of names) {
+    const view = VIEWS.find((v) => v.name === name);
+    const { report } = await shootView(cdp, view);
+    const tiles = (report.heroTiles || []).filter((t) => t.chip);
+    const bad = tiles.filter((t) => t.chipClipped || t.labelHitsChip);
+    results.push({ view: name, chipTexts: tiles.map((t) => t.chip).join(','),
+      ok: tiles.length > 0 && bad.length === 0,
+      detail: tiles.map((t) => `${t.chip} right=${t.chipRight} content=${t.contentRight}`).join(' | ') });
+  }
+  return results;
+}
+
 /* ---------- render laporan teks ---------- */
 function renderTxt(report, name) {
   const L = [];
@@ -375,6 +395,12 @@ ${imgs.map((i) => `<div class="view"><h2>${i.name} · ${(i.bytes / 1024).toFixed
       results.forEach((r) => {
         console.log(`  ${r.pass ? 'ok  ' : 'FAIL'} ${r.name}  (${r.extra})`);
         if (!r.pass) fails++;
+      });
+      const chips = await runChipChecks(cdp);
+      console.log('\n--check chip hero (TRIP/AMBANG/RESTRAIN)--');
+      chips.forEach((c) => {
+        console.log(`  ${c.ok ? 'ok  ' : 'FAIL'} ${c.view}: chip ${c.chipTexts || '—'}  (${c.detail})`);
+        if (!c.ok) fails++;
       });
       if (fails) {
         console.log(`\n${fails} pemeriksaan GAGAL`);

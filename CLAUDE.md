@@ -25,7 +25,10 @@ dokumen itu juga).
    `.tt-a`↔`.tt-b` + kilau, palet `--ink/--copper/--blue/--teal`, font Space
    Grotesk/Inter/JetBrains Mono, kartu collapse `.card-b-i`, lock tinggi desktop,
    label SVG ber-halo. Jangan mengubah seam ini seenaknya — diuji
-   `tools/ui.test.js`.
+   `tools/ui.test.js`. Detail header: "by Sheva - Endetta" muncul tiap **24 dtk**
+   ±3 dtk (fade halus, tanpa potongan keras) dan kilau = **krem #FDFAF3 di atas
+   copper lembut #8A6B4D** (jangan kembalikan siklus 8 dtk / band putih / oranye
+   copper-deep menyala).
 2. **Model perhitungan/fitur** = port dari PRD `diff relay/` (salinan: `docs/PRD.md`).
 
 Tidak ada build system / package manager / framework. Satu-satunya dependensi eksternal:
@@ -41,8 +44,8 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 60 asersi literals model murni (PRD §5 + error CT + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 94 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
-node tools/shoot.js --check    # verifikasi gerak collapse anti-blink di Chrome sungguhan
+node tools/ui.test.js          # 97 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
+node tools/shoot.js --check    # verifikasi di Chrome: gerak collapse anti-blink + chip hero utuh
 ```
 
 **Melihat UI tanpa membuka browser** — `node tools/shoot.js` (tanpa dependensi, CDP
@@ -132,10 +135,12 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    sejati** (`circle[data-true-point]` + garis putus `line[data-err-link]`) hanya saat
    `hasErr`), `renderTable`, `renderSide` (status box + readout nilai-langsung 2 grup
    `Titik uji`/`Keputusan` — TANPA kalimat ringkasan, TANPA kotak edukasi & TANPA
-   footer rumus KaTeX (blok `#formulaOut` DIHAPUS: nilainya dobel dgn hero); dua
+   footer rumus KaTeX (blok `#formulaOut` DIHAPUS: nilainya dobel dgn hero);   dua
    nilai utama sbg **hero** `div.hero-row` — **Iop (nilai keputusan)
    tampil LEBIH DULU** dgn tile ber-status (tint `--*-soft` + aksen kiri `::before` +
-   chip `h-chip` berisi TRIP/AMBANG/RESTRAIN + nilai berwarna status), **Irt netral**
+   chip `h-chip` berisi TRIP/AMBANG/RESTRAIN di **BARIS SENDIRI di bawah label**
+   (jangan kembalikan ke sebaris label — tile sempit ±126 px memotongnya) + nilai
+   berwarna status), **Irt netral**
    sbg pembanding (`--bg`, aksen `--line`, tanpa chip); baris Irt/Iop lama DIHAPUS;
    baris `Pita toleransi (tol ±N%)` menampilkan
    rentang `low – top pu` saat `tol>0`; indikator PALSU/TERLEWAT = sisipan kecil di

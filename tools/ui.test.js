@@ -41,6 +41,19 @@ check('judul bergantian .tt-a ↔ .tt-b + kilau ttShine', () => {
   contains(src, '@keyframes ttSwapB', 'css');
   contains(src, 'prefers-reduced-motion', 'css');
 });
+check('header: "by Sheva - Endetta" JARANG — siklus 24 dtk, fade halus (bukan 8 dtk + potongan keras)', () => {
+  if (src.includes('ttSwapA 8s ease-in-out') || src.includes('ttSwapB 8s ease-in-out')) throw new Error('siklus swap lama 8 dtk masih dipakai');
+  contains(src, 'ttSwapA 24s ease-in-out infinite', 'durasi animasi A');
+  contains(src, 'ttSwapB 24s ease-in-out infinite', 'durasi animasi B');
+  contains(src, '@keyframes ttSwapA{0%,58%{opacity:1}74%,88%{opacity:0}96%,100%{opacity:1}}', 'keyframes A (fade keluar-masuk)');
+  contains(src, '@keyframes ttSwapB{0%,58%{opacity:0}74%,88%{opacity:1}96%,100%{opacity:0}}', 'keyframes B');
+});
+check('header: kilau krem #FDFAF3 di atas copper lembut (bukan band putih/oranye menyala)', () => {
+  if (src.includes('rgba(255,255,255,.9)')) throw new Error('band putih lama masih dipakai');
+  contains(src, '#8A6B4D 42%', 'copper lembut kiri');
+  contains(src, '#FDFAF3 50%', 'band krem');
+  contains(src, '#8A6B4D 58%', 'copper lembut kanan');
+});
 check('collapse animasi .card-b-i grid 1fr→0fr (bukan display:none)', () => {
   contains(src, '.card-b-i', 'css');
   contains(src, 'grid-template-rows:0fr', 'css');
@@ -433,13 +446,18 @@ check('kartu kanan: hero Irt/Iop (nilai utama di-highlight) + baris nilai lain',
   if (!(iIop >= 0 && iIrt >= 0 && iIop < iIrt)) throw new Error('Iop harus tampil lebih dulu (nilai keputusan)');
   contains(h, '<div class="hero trip">', 'tile Iop berkelas status');
   contains(h, '<span class="h-chip">TRIP</span>', 'chip status TRIP di tile Iop');
-  contains(h, '<span class="h-top">', 'baris atas hero (label+chip)');
+  contains(h, '<span class="h-top">', 'baris atas hero (label)');
   contains(h, '<span class="h-val">', 'baris nilai hero');
   if (h.indexOf('<span class="h-chip">') < iIop || h.indexOf('<span class="h-chip">') > iIop + 200)
     throw new Error('chip status harus di dalam tile Iop');
   contains(src, '.readout .hero::before', 'garis aksen status');
   contains(src, '.readout .hero.trip{background:var(--red-soft)', 'tile Iop tinted status');
   contains(src, '.readout .hero .h-chip', 'css chip');
+});
+check('chip status hero Iop di BARIS SENDIRI di bawah label (tidak sebaris → tak terpotong)', () => {
+  if (/Iop — operasi<\/span><span class="h-chip">/.test(src)) throw new Error('chip masih sebaris dgn label (sumber terpotong)');
+  contains(src, '</span></span><span class="h-chip">', 'chip baris sendiri setelah h-top');
+  contains(src, '.readout .hero .h-chip{align-self:flex-start', 'css chip rata kiri di barisnya');
 });
 check('kartu kanan: footer Iop/Irt DIHAPUS — render tak menyentuh #formulaOut; nilai hanya di hero', () => {
   clearPoints(); zeroErrors();
