@@ -59,7 +59,8 @@ berjalan tanpanya.
   *eksternal → internal* dengan titik berjalan menyeberangi kurva
 - **Peringatan non-blocking** untuk kombinasi tak lazim
 - **Gaya desain "Simulator Distance Relay"**: splash krem, judul animasi, kartu
-  collapse, label ber-halo, mode tampilan bahasa Indonesia
+  collapse (pusat saat semua ciut — animasi anti-blink), label ber-halo, mode
+  tampilan bahasa Indonesia
 
 ## Struktur
 
@@ -74,8 +75,9 @@ berjalan tanpanya.
 ```bash
 node tools/model.test.js       # model: threshold, status, margin, error CT, measuredToTrue, toleransi, obs (60 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (93 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + tooltip-vs-seret + obs + titik-ikut-error (94 asersi)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
+node tools/shoot.js --check    # verifikasi gerak collapse anti-blink (Chrome sungguhan)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

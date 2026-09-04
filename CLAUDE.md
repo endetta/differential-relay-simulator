@@ -41,7 +41,8 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 60 asersi literals model murni (PRD §5 + error CT + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 93 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
+node tools/ui.test.js          # 94 asersi seam desain & perilaku UI (incl. titik-ikut-error + tooltip-vs-seret)
+node tools/shoot.js --check    # verifikasi gerak collapse anti-blink di Chrome sungguhan
 ```
 
 **Melihat UI tanpa membuka browser** — `node tools/shoot.js` (tanpa dependensi, CDP
@@ -55,6 +56,8 @@ legend), status tooltip (`planeTip`/`qTip` shown?), ikon `?` + label induknya
 probe. View JS memakai fungsi global aplikasi (`addPoint`, `runScenario`, `applyErr`,
 `applyObs`, `selectPoint`, …) — jangan duplikasi logika. Folder `tools/shots/`
 GITIGNORED (artefak). `CHROME=/path node tools/shoot.js` bila Chrome tak terdeteksi.
+Mode `--check` menyampel padding/posisi konten saat buka & ciut dari keadaan
+semua-kartu-terciut — GAGAL bila ada lompatan instan (blink tengah→atas).
 
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
 file di-rename.
@@ -210,6 +213,13 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   `#qTip` saat hover (delegasi `pointerover/out`, baca `dataset.tip`). Jangan menulis
   kalimat panduan baru di panel; jangan mengembalikan `#scenHint`/`#methodHint`/attr
   `hidden` pada tooltip.
+- **Pusat tumpukan semua-ciut lewat padding-top, BUKAN `justify-content`** (tidak
+  animatable → "blink tengah→atas" saat kartu dibuka dari keadaan semua-terciut).
+  `syncCollapsedCentering` menulis `panel.style.paddingTop` (target offset dihitung
+  `collapsedStackH` = tinggi tumpukan keadaan ciut) + transisi CSS `.35s ease` pada
+  `.params-panel` → buka dari semua-ciut meng-glide mulus ke atas & ciut kartu
+  terakhir meng-glide ke tengah. Jangan kembalikan
+  `.all-collapsed{justify-content:center}`. Diuji `node tools/shoot.js --check`.
 - **Keputusan 3 status** (`tripState`/`statusOf`): RESTRAIN (di bawah pita) /
   AMBANG (DI DALAM pita simetris `kurva×(1±tol/100)` — kurva sendiri termasuk
   AMBANG saat `tol>0`) / TRIP (di atas pita). AMBANG = copper

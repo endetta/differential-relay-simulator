@@ -15,6 +15,7 @@
      node tools/shoot.js --view points      # satu view saja
      node tools/shoot.js --out DIR          # folder output (default tools/shots)
      node tools/shoot.js --wait-ms 2400     # waktu tunggu splash (default 2400)
+     node tools/shoot.js --check            # verifikasi gerak collapse anti-blink (exit 1 bila lompat)
      CHROME=/path/to/chrome node tools/shoot.js
 
    Catatan penting:
@@ -44,6 +45,7 @@ const arg = (name, dflt) => {
 const onlyView = arg('--view', null);
 const outDir = path.resolve(arg('--out', DEFAULT_OUT));
 const waitMs = parseInt(arg('--wait-ms', '2400'), 10);
+const doCheck = argv.includes('--check');
 
 /* ---------- cari Chrome ---------- */
 function resolveChrome() {
@@ -183,6 +185,24 @@ const REPORT_JS = `(() => {
     status: { rect: R('.status'), text: (document.querySelector('.status .zlabel') || {}).textContent || '' },
     hero: !!document.querySelector('.hero-row'),
     readoutRect: R('#readout'),
+    /* tile hero: apakah chip status (h-chip) terpotong di tepi kanan tile (overflow hidden)? */
+    heroTiles: Array.from(document.querySelectorAll('.hero')).map((el) => {
+      const b = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      const contentR = b.right - parseFloat(cs.paddingRight) - parseFloat(cs.borderRightWidth);
+      const chip = el.querySelector('.h-chip');
+      const cb = chip ? chip.getBoundingClientRect() : null;
+      const lbl = el.querySelector('.h-l');
+      const lb = lbl ? lbl.getBoundingClientRect() : null;
+      const cls = (el.className.match(/\b(trip|ambang|restrain)\b/) || [])[1] || 'netral';
+      return { status: cls, chip: chip ? chip.textContent : null,
+        rect: { x: +b.x.toFixed(1), y: +b.y.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) },
+        contentRight: +contentR.toFixed(1),
+        chipLeft: cb ? +cb.left.toFixed(1) : null, chipRight: cb ? +cb.right.toFixed(1) : null,
+        labelRight: lb ? +lb.right.toFixed(1) : null,
+        chipClipped: cb ? cb.right > contentR + 0.5 : false,
+        labelHitsChip: (lb && cb) ? lb.right > cb.left + 0.5 : false };
+    }),
     paramsPanel: pp ? { clientH: pp.clientHeight, scrollH: pp.scrollHeight,
       scrollable: pp.scrollHeight > pp.clientHeight + 1 } : null,
     cards, qIcons,
@@ -247,6 +267,50 @@ async function shootView(cdp, view) {
   return { report, png };
 }
 
+/* ---------- mode --check: gerak collapse dianimasikan (anti-blink tengah→atas) ----------
+   Buka halaman desktop, ciutkan SEMUA kartu (→ tumpukan di tengah via padding-top),
+   lalu buka/ciutkan satu kartu sambil mengukur padding & posisi konten pada ~60 ms
+   dan setelah transisi selesai. GAGAL bila ada lompatan instan (mekanisme lama:
+   justify-content tidak animatable → teleport ±300 px = "blink"). */
+async function runCollapseChecks(cdp) {
+  const w = 1440, h = 1000;
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+  const loaded = new Promise((r) => cdp.on('Page.loadEventFired', r));
+  await cdp.send('Page.navigate', { url: fileUrl(HTML_PATH) });
+  await loaded;
+  await sleep(waitMs);                       // splash + ready
+  const m = await evalJs(cdp, `(async () => {
+    const panel = document.querySelector('.params-panel');
+    const heads = Array.from(document.querySelectorAll('.card-h'));
+    const first = document.querySelector('.card[data-card]');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pad = () => parseFloat(getComputedStyle(panel).paddingTop) || 0;
+    const topY = () => first.getBoundingClientRect().top - panel.getBoundingClientRect().top;
+    heads.forEach((hd) => hd.click());            // semua ciut → tumpukan tengah
+    await wait(800);
+    const off0 = pad(), top0 = topY();
+    heads[0].click();                             // buka kartu #1
+    await wait(60);                               // harus MASIH meluncur (tanpa lompat)
+    const padEarly = pad();
+    await wait(540);                              // transisi selesai → menempel atas
+    const padEnd = pad(), topEnd = topY();
+    heads[0].click();                             // ciutkan lagi → kembali ke tengah
+    await wait(60);
+    const topMid = topY();
+    await wait(540);
+    const offEnd = pad(), topEnd2 = topY();
+    return { off0, top0, padEarly, padEnd, topEnd, topMid, offEnd, topEnd2, panelH: panel.clientHeight };
+  })()`);
+  const A = [];
+  const ok = (name, cond, extra) => A.push({ name, pass: !!cond, extra });
+  ok('semua-ciut → tumpukan di tengah (padding-top besar)', m.off0 >= 60, `off0=${m.off0} top0=${m.top0}`);
+  ok('buka dari semua-ciut: tanpa lompat (padding masih besar di 60ms)', m.padEarly >= 0.5 * m.off0, `padEarly=${m.padEarly} off0=${m.off0}`);
+  ok('buka selesai → menempel atas (padding & konten ≈ 0)', m.padEnd <= 30 && m.topEnd <= 30, `padEnd=${m.padEnd} topEnd=${m.topEnd}`);
+  ok('ciut terakhir: tanpa lompat (konten masih dekat atas di 60ms)', m.topMid <= Math.max(60, 0.45 * m.off0), `topMid=${m.topMid} off0=${m.off0}`);
+  ok('ciut selesai → tengah lagi', m.offEnd >= 60 && Math.abs(m.topEnd2 - m.offEnd) < 4, `offEnd=${m.offEnd} topEnd2=${m.topEnd2}`);
+  return A;
+}
+
 /* ---------- render laporan teks ---------- */
 function renderTxt(report, name) {
   const L = [];
@@ -258,6 +322,7 @@ function renderTxt(report, name) {
   L.push(`  side-card ${fmt(report.sideCard)} · points-card ${fmt(report.pointsCard)} · legend ${fmt(report.legend)}`);
   if (report.legendItems.length) L.push(`  legend: ${report.legendItems.join(' | ')}`);
   L.push(`  status: "${report.status.text}" ${report.hero ? '· hero ✓' : ''}`);
+  (report.heroTiles || []).forEach((t) => L.push(`  hero-tile [${t.status}] ${t.chip ? `chip "${t.chip}"` : 'no-chip'} ${fmt(t.rect)} chipRight ${t.chipRight} > contentRight ${t.contentRight} ${t.chipClipped ? '⚠ CHIP TERPOTONG' : ''}${t.labelHitsChip ? ' ⚠ label mentok chip' : ''}`));
   L.push(`  state ${JSON.stringify(report.state)} · obsDyn "${report.obsDynText}"`);
   L.push(`  params-panel ${report.paramsPanel ? `scroll ${report.paramsPanel.scrollH}px (client ${report.paramsPanel.clientH}) ${report.paramsPanel.scrollable ? '→ scroll internal' : ''}` : '—'}`);
   report.cards.forEach((c) => L.push(`  card ${c.card} ${c.collapsed ? '✂' : ''} ${fmt(c.rect)}`));
@@ -303,6 +368,19 @@ function renderTxt(report, name) {
 ${imgs.map((i) => `<div class="view"><h2>${i.name} · ${(i.bytes / 1024).toFixed(1)} KB</h2><img src="${rel(i.pngPath)}" alt="${i.name}"></div>`).join('')}
 </body></html>`;
     fs.writeFileSync(path.join(outDir, 'index.html'), idx);
+    if (doCheck) {
+      const results = await runCollapseChecks(cdp);
+      console.log('\n--check collapse motion--');
+      let fails = 0;
+      results.forEach((r) => {
+        console.log(`  ${r.pass ? 'ok  ' : 'FAIL'} ${r.name}  (${r.extra})`);
+        if (!r.pass) fails++;
+      });
+      if (fails) {
+        console.log(`\n${fails} pemeriksaan GAGAL`);
+        process.exitCode = 1;
+      } else console.log('\nsemua pemeriksaan lulus');
+    }
   } finally {
     proc.kill();
     try { fs.rmSync(profile, { recursive: true, force: true }); } catch { /* ok */ }

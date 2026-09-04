@@ -1,8 +1,9 @@
 /* Tes seam UI & desain (port dari Simulator Distance Relay) + perilaku kartu kanan.
    Jalankan: node tools/ui.test.js
-   Seam yang diperiksa: splash, judul .tt-a/.tt-b, collapse .card-b-i, SVG #plane
-   (daerah TRIP/RESTRAIN, kurva, pickup, marker BP, halo tick), readout 2 grup,
-   tabel titik, peringatan non-blocking, syncCollapsedCentering. */
+   Seam yang diperiksa: splash, judul .tt-a/.tt-b, collapse .card-b-i + centering
+   dianimasikan (padding-top, anti-blink tengah→atas — gerak diuji tools/shoot.js
+   --check), SVG #plane (daerah TRIP/RESTRAIN, kurva, pickup, marker BP, halo tick),
+   readout 2 grup, tabel titik, peringatan non-blocking, syncCollapsedCentering. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -45,6 +46,12 @@ check('collapse animasi .card-b-i grid 1fr→0fr (bukan display:none)', () => {
   contains(src, 'grid-template-rows:0fr', 'css');
   contains(src, 'syncCollapsedCentering', 'js');
   contains(src, 'all-collapsed', 'css');
+});
+check('collapse centering DIANIMASI: padding-top transition, bukan justify-content (anti-blink tengah→atas)', () => {
+  if (src.includes('.all-collapsed{justify-content:center}')) throw new Error('centering masih justify-content (tidak animatable → lompat)');
+  contains(src, 'transition:padding-top .35s ease', 'css .params-panel');
+  contains(src, 'collapsedStackH', 'js ukur tinggi terciut');
+  contains(src, "panel.style.paddingTop", 'js tulis inline padding');
 });
 check('splash: #splash krem + judul + S H E V A + .wrap opacity 0', () => {
   contains(src, 'id="splash"', 'markup');

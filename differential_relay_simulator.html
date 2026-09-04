@@ -35,10 +35,12 @@
   *::-webkit-scrollbar-track{background:transparent;}
   *::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
   *::-webkit-scrollbar-thumb:hover{background:var(--blue-soft);}
-  .params-panel{display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-gutter:stable;padding:2px 3px 2px 0;}
+  .params-panel{display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-gutter:stable;padding:2px 3px 2px 0;transition:padding-top .35s ease;}
   .params-panel .card{margin-bottom:0;}
   @media(max-width:920px){.params-panel{height:auto!important;overflow:visible;scrollbar-gutter:auto;}}
-  .params-panel.all-collapsed{justify-content:center;}
+  /* pusat tumpukan saat semua ciut DIATUR lewat padding-top inline oleh
+     syncCollapsedCentering (bisa dianimasi) — jangan kembali ke justify-content:
+     tidak animatable → lompatan instan "blink tengah→atas" saat kartu dibuka. */
 
   .field{margin-bottom:11px;}
   .field:last-child{margin-bottom:0;}
@@ -89,6 +91,7 @@
   @media (prefers-reduced-motion: reduce){
     .topbar .tt-a,.topbar .tt-b{animation:none!important;}
     .topbar .tt-b{display:none;}
+    .params-panel{transition:none!important;}
   }
   .topbar .tt::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--copper);box-shadow:0 0 0 3.5px var(--copper-soft);margin-right:11px;flex:none;}
 
@@ -1122,10 +1125,38 @@ function setCollapsed(card,state){
   if(c) c.classList.toggle('collapsed',state);
   syncCollapsedCentering(); schedulePlaneFit();
 }
+/* collapse centering: saat SEMUA kartu ciut, tumpukan dipusatkan di panel lewat
+   padding-top INLINE yang DIANIMASI (.35s ease di CSS) — bukan justify-content
+   yang tidak animatable (dulu: toggle .all-collapsed saat kartu dibuka membuat
+   lompatan instan "blink dari tengah ke atas"). collapsedStackH menghitung tinggi
+   tumpukan keadaan ciut (header + padding kartu + gap) supaya target akhir
+   tepat sejak awal dan animasi buka/ciut bergerak mulus bersamaan. */
+let padBaseTop = null;
+function collapsedStackH(){
+  const cards=document.querySelectorAll('.card[data-card]');
+  const gcs=(typeof getComputedStyle==='function')?getComputedStyle:null;
+  let sum=0; const n=cards.length;
+  cards.forEach(c=>{
+    const cs=gcs?gcs(c):null;
+    const hd=c.querySelector('.card-h');
+    const hcs=(hd&&gcs)?gcs(hd):null;
+    sum+=(cs?((parseFloat(cs.paddingTop)||0)+(parseFloat(cs.paddingBottom)||0)
+      +(parseFloat(cs.borderTopWidth)||0)+(parseFloat(cs.borderBottomWidth)||0)):0)
+      +(hd?((hd.getBoundingClientRect?hd.getBoundingClientRect().height:0)||0):0)
+      +(hcs?(parseFloat(hcs.marginBottom)||0):0);
+  });
+  const gap=gcs?((parseFloat(gcs($('paramsPanel')).rowGap)||0)):0;
+  return sum+gap*Math.max(0,n-1);
+}
 function syncCollapsedCentering(){
+  const panel=$('paramsPanel');
   const cards=document.querySelectorAll('.card[data-card]');
   const all=cards.length>0&&Array.from(cards).every(c=>!!S.ui.collapsed[c.dataset.card]);
-  $('paramsPanel').classList.toggle('all-collapsed',all);
+  panel.classList.toggle('all-collapsed',all);
+  if(padBaseTop==null)
+    padBaseTop=(typeof getComputedStyle==='function')?(parseFloat(getComputedStyle(panel).paddingTop)||0):0;
+  const top=all?Math.max(0,((panel.clientHeight||0)-collapsedStackH())/2):padBaseTop;
+  panel.style.paddingTop=Math.round(top*10)/10+'px';
 }
 document.querySelectorAll('.card-h').forEach(h=>h.addEventListener('click',e=>{
   if(e.target&&e.target.closest&&e.target.closest('.q')) return;   // ikon bantuan: jangan collapse (audit U1)
@@ -1674,7 +1705,7 @@ function schedulePlaneFit(){ setTimeout(fitPlane,60); }
   if(!pc) return;
   const ro=new ResizeObserver(()=>fitPlane());
   ro.observe(pc);
-  addEventListener('resize',()=>fitPlane());
+  addEventListener('resize',()=>{ fitPlane(); syncCollapsedCentering(); });
   document.querySelectorAll('.card-h').forEach(hd=>hd.addEventListener('click',schedulePlaneFit));
   fitPlane();
 })();

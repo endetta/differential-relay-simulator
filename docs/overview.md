@@ -67,8 +67,8 @@ Satu-satunya dependensi eksternal dari CDN: Google Fonts — inti tetap jalan ta
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + measuredToTrue + toleransi 3-status + obs, 60 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (93 asersi). `node tools/ui.test.js`. |
-| `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (94 asersi). `node tools/ui.test.js`. |
+| `tools/shoot.js` | Screenshot & laporan tata letak via headless Chrome (CDP, tanpa dependensi): PNG per view + `report.json`/`report.txt` (geometri, tooltip, ikon `?`, overflow, exception) + lembar kontak `index.html` → `tools/shots/` (gitignored). `node tools/shoot.js`; `--check` = verifikasi gerak collapse anti-blink di Chrome sungguhan. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
 
@@ -196,9 +196,10 @@ Satu-satunya dependensi eksternal dari CDN: Google Fonts — inti tetap jalan ta
 ```bash
 node tools/model.test.js       # 60 asersi literals model (PRD §5 + error + measuredToTrue + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 93 asersi seam desain + perilaku UI (hoverInfo, legend,
+node tools/ui.test.js          # 94 asersi seam desain + perilaku UI (hoverInfo, legend,
                                #    errOut, tooltip .show & vs-seret, scrollbar, collapse, obs)
 node tools/shoot.js            # screenshot semua view → tools/shots/*.png + report.json/txt
+node tools/shoot.js --check    # gerak collapse anti-blink (buka/ciut dari semua-ciut)
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari
