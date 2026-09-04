@@ -37,7 +37,11 @@ inti tetap berjalan tanpanya.
   garis pickup, kurva ambang) — tooltip nilai muncul mengikuti kursor
 - **Faktor kesalahan pengukuran**: error/saturasi CT per sisi + mismatch rasio — titik
   **sejati vs titik terukur** (keputusan relay selalu pada yang terukur; trip palsu /
-  terlewat ditandai langsung)
+  terlewat ditandai langsung); default realistis **5%/5%/+10%** (CT 5P + tap) — bukan 0
+- **Mode pengamatan arus sistem**: sapu arus gangguan eksternal/beban transformator
+  `I₁=I₂=I` (0.2–12 pu) dengan error CT aktif — amati apakah titik terukur melewati
+  slope saat arus membesar/mengecil; tersedia saturasi CT **dinamis** (error efektif
+  membesar di arus tinggi), jejak + sumbu otomatis
 - **Panduan via ikon "?"**: teks petunjuk permanen diganti tooltip saat hover
 - **Daftar titik uji**: tabel dengan badge status TRIP/AMBANG/RESTRAIN, margin (%),
   hapus, sorot, bersihkan
@@ -62,9 +66,9 @@ inti tetap berjalan tanpanya.
 ## Validasi
 
 ```bash
-node tools/model.test.js       # model: threshold multi-slope, status, margin, error CT, toleransi (47 asersi)
+node tools/model.test.js       # model: threshold, status, margin, error CT, toleransi, obs (53 asersi)
 node tools/slope-list.test.js  # modul slopeList: invariant properti + literal (18 asersi)
-node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo (63 asersi)
+node tools/ui.test.js          # seam desain + perilaku UI, incl. hoverInfo + obs (70 asersi)
 ```
 
 Kedua tes memakai harness mock-DOM kecil (`tools/lens-harness.js`) yang menjalankan

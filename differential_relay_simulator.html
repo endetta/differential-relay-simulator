@@ -315,26 +315,26 @@
           <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="chev">▾</span></div>
           <div class="card-b"><div class="card-b-i">
             <div class="field">
-              <label><span>Error CT sisi 1 — I₁</span><span class="qline"><span class="q" data-tip="CT sisi 1 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₁ ×(1−e/100).">?</span><b id="errv-ct1">0%</b></span></label>
+              <label><span>Error CT sisi 1 — I₁</span><span class="qline"><span class="q" data-tip="CT sisi 1 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₁ ×(1−e/100). Default 5% = CT kelas 5P.">?</span><b id="errv-ct1">5%</b></span></label>
               <div class="ctrlrow">
-                <input type="range" id="err-ct1" min="0" max="95" step="1" value="0">
-                <input type="number" id="err-ct1n" min="0" max="95" step="1" value="0" inputmode="numeric">
+                <input type="range" id="err-ct1" min="0" max="95" step="1" value="5">
+                <input type="number" id="err-ct1n" min="0" max="95" step="1" value="5" inputmode="numeric">
                 <span class="unit">%</span>
               </div>
             </div>
             <div class="field">
-              <label><span>Error CT sisi 2 — I₂</span><span class="qline"><span class="q" data-tip="CT sisi 2 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₂ ×(1−e/100).">?</span><b id="errv-ct2">0%</b></span></label>
+              <label><span>Error CT sisi 2 — I₂</span><span class="qline"><span class="q" data-tip="CT sisi 2 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₂ ×(1−e/100). Default 5% = CT kelas 5P.">?</span><b id="errv-ct2">5%</b></span></label>
               <div class="ctrlrow">
-                <input type="range" id="err-ct2" min="0" max="95" step="1" value="0">
-                <input type="number" id="err-ct2n" min="0" max="95" step="1" value="0" inputmode="numeric">
+                <input type="range" id="err-ct2" min="0" max="95" step="1" value="5">
+                <input type="number" id="err-ct2n" min="0" max="95" step="1" value="5" inputmode="numeric">
                 <span class="unit">%</span>
               </div>
             </div>
             <div class="field">
-              <label><span>Mismatch rasio CT — I₂</span><span class="qline"><span class="q" data-tip="Mismatch rasio dua CT: beda penyetelan rasio diterapkan sbg faktor ± pada I₂: I₂ ×(1+mm/100).">?</span><b id="errv-mm">0%</b></span></label>
+              <label><span>Mismatch rasio CT — I₂</span><span class="qline"><span class="q" data-tip="Mismatch rasio dua CT / tap changer: beda penyetelan rasio diterapkan sbg faktor ± pada I₂: I₂ ×(1+mm/100). Default +10% ≈ rentang OLTC.">?</span><b id="errv-mm">+10%</b></span></label>
               <div class="ctrlrow">
-                <input type="range" id="err-mm" min="-30" max="30" step="1" value="0">
-                <input type="number" id="err-mmn" min="-30" max="30" step="1" value="0" inputmode="numeric">
+                <input type="range" id="err-mm" min="-30" max="30" step="1" value="10">
+                <input type="number" id="err-mmn" min="-30" max="30" step="1" value="10" inputmode="numeric">
                 <span class="unit">%</span>
               </div>
             </div>
@@ -361,6 +361,29 @@
               <button data-v="satct">Saturasi CT</button>
               <button data-v="inrush">Inrush</button>
             </div>
+          </div></div>
+        </div>
+
+        <div class="card" data-card="obs">
+          <div class="card-h"><span class="dot"></span>Pengamatan arus sistem<span class="chev">▾</span></div>
+          <div class="card-b"><div class="card-b-i">
+            <div class="field">
+              <label><span>Arus sistem I — kedua sisi (I₁=I₂)</span><span class="qline"><span class="q" data-tip="Gangguan eksternal / beban transformator: I₁ &amp; I₂ dinaik-turunkan BERSAMA (=I). Error CT &amp; mismatch tetap aktif — amati apakah titik terukur melewati slope saat arus membesar/mengecil.">?</span><b id="obsIv">1.0 pu</b></span></label>
+              <div class="ctrlrow">
+                <input type="range" id="obsI" min="0.2" max="12" step="0.1" value="1">
+                <input type="number" id="obsIn" min="0.2" max="12" step="0.1" value="1" inputmode="decimal">
+                <span class="unit">pu</span>
+              </div>
+            </div>
+            <button class="mini-btn on" id="obsDyn" style="width:100%;margin-bottom:10px;">Saturasi CT dinamis: AKTIF</button>
+            <div class="btngroup" id="obsPreset">
+              <button data-v="0.5">Ringan</button>
+              <button data-v="1" class="active">Penuh</button>
+              <button data-v="6">Fault</button>
+              <button data-v="12">Berat</button>
+            </div>
+            <div class="zline" id="obsOut" style="margin-top:8px;">I — pu</div>
+            <button class="mini-btn hl" id="obsPlay" style="width:100%;">▶ Amati: kecil → besar</button>
           </div></div>
         </div>
 
@@ -450,14 +473,20 @@ const PRESETS={
   dual:{pickup:0.30,slopes:[{percent:25,breakpoint:2.0},{percent:65,breakpoint:null}]},
   multi:{pickup:0.20,slopes:[{percent:25,breakpoint:1.5},{percent:40,breakpoint:4.0},{percent:80,breakpoint:null}]}
 };
+/* Default faktor kesalahan pengukuran — BUKAN nol, sesuai parameter sistem nyata:
+   CT proteksi kelas 5P (error ≤5% per sisi saat through-fault) + mismatch rasio/tap
+   ±10% (OLTC / kombinasi rasio dua CT). Slope 1 (25%) memang dirancang mengamankan
+   mismatch sampai ~10–20%; titik dengan default ini tetap RESTRAIN di arus berapa pun
+   (error proporsional), dan hanya error yang membesar (saturasi) yang bisa trip palsu. */
+const DEFAULT_ERR={ct1:5,ct2:5,mm:10};
 /* Skenario arus (pu) — I1/I2 = arus SEJATI di primer CT; `err` ikut mengisi kartu
    Faktor kesalahan (ct1/ct2 dalam %, mm dalam %). autoAdd → titik demo otomatis. */
 const SCENARIOS={
-  normal:  {i1:1.00,i2:1.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Beban normal 1/1 pu → RESTRAIN.'},
-  external:{i1:5.00,i2:4.75,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Through-fault 5/4.75 pu → RESTRAIN. Naikkan Error CT sisi 2 untuk melihat trip palsu.'},
-  internal:{i1:5.00,i2:0.00,err:{ct1:0,ct2:0,mm:0},autoAdd:false,desc:'Gangguan internal 5/0 pu → TRIP kuat.'},
+  normal:  {i1:1.00,i2:1.00,err:DEFAULT_ERR,autoAdd:false,desc:'Beban normal 1/1 pu → RESTRAIN.'},
+  external:{i1:5.00,i2:4.75,err:DEFAULT_ERR,autoAdd:false,desc:'Through-fault 5/4.75 pu → RESTRAIN. Naikkan Error CT sisi 2 untuk melihat trip palsu.'},
+  internal:{i1:5.00,i2:0.00,err:DEFAULT_ERR,autoAdd:false,desc:'Gangguan internal 5/0 pu → TRIP kuat.'},
   satct:   {i1:5.00,i2:5.00,err:{ct1:0,ct2:45,mm:0},autoAdd:false,desc:'Through-fault sejati 5/5 pu + Error CT sisi 2 45% → <b>TRIP PALSU</b>.'},
-  inrush:  {i1:5.00,i2:0.05,err:{ct1:0,ct2:0,mm:0},autoAdd:true,desc:'Inrush 5/0.05 pu → TRIP (relay nyata memblokir via harmonik ke-2).'}
+  inrush:  {i1:5.00,i2:0.05,err:DEFAULT_ERR,autoAdd:true,desc:'Inrush 5/0.05 pu → TRIP (relay nyata memblokir via harmonik ke-2).'}
 };
 
 const S={
@@ -467,14 +496,17 @@ const S={
     tol:10,                         // toleransi ambang (%) — pita di atas kurva; keputusan 3 status
     slopes:[],                      // diisi SL.load(DEFAULT_SLOPES) di bawah (modul slopeList)
     i1:1.20,i2:0.60,
-    err:{ct1:0,ct2:0,mm:0},        // faktor kesalahan pengukuran (%): lihat measuredPair
+    err:{...DEFAULT_ERR},           // default error CT REALISTIS (5%/5%/+10%) — lihat DEFAULT_ERR
+    obs:{on:false,I:1.0,dyn:true,knee:4,gain:2.5,play:false},
+                                    // mode pengamatan arus sistem: sweep I₁=I₂=I (through);
+                                    // dyn: ct efektif membesar saat I > knee (saturasi dinamis)
     points:[],                      // input saja: {id,source,irt,iop} manual | {id,source,i1,i2} calc
     selectedId:null,
     editId:null,                    // titik 'calc' yg sedang diedit via Kalkulator arus (id)
     probe:null,                     // titik animasi sementara {i1,i2} — koordinat/status via evaluatePoint
     probeTrace:null                 // jejak animasi [irt,iop][] (pu) — sejarah, bukan turunan
   },
-  ui:{collapsed:{curve:false,err:false,calc:false}}
+  ui:{collapsed:{curve:false,err:false,calc:false,obs:false}}
 };
 const P=S.param;
 
@@ -636,6 +668,42 @@ function measuredPair(i1,i2,err){
   const mm=clamp(Number(err.mm)||0,-30,30);
   return { i1m:Math.max(0,i1*(1-c1/100)), i2m:Math.max(0,i2*(1-c2/100)*(1+mm/100)) };
 }
+/* ===== mode pengamatan arus sistem (through-sweep I₁=I₂=I) — murni & diuji.
+   Error proporsional statis: titik terukur bergerak LURUS (rasio Iop/Irt konstan dlm
+   satu segmen slope) → arus besar TIDAK mendekatkan trip. Saturasi DINAMIS (opsional):
+   ct efektif = ct × satFactor(I) — membesar di atas knee (lutut), linier sampai gain
+   di 3·knee → titik melengkung & bisa menyeberang slope di arus tinggi. ===== */
+function satFactor(i,knee,gain){
+  knee=knee||4; gain=gain||2.5;
+  if(!(i>knee)) return 1;
+  const cap=knee*3;
+  if(i>=cap) return gain;
+  return 1+(gain-1)*(i-knee)/(cap-knee);
+}
+/* Pasangan terukur utk titik pengamatan pd arus sistem I (i1=i2=I). dyn ON → kedua
+   CT membesar bareng (model identik); asimetri cukup via setelan ct1 vs ct2. */
+function obsEff(m,I){
+  const o=m.obs||{};
+  const err=m.err||ERR0;
+  const f=dyn=>dyn?satFactor(I,o.knee,o.gain):1;
+  const dyn=!!o.dyn;
+  const c1=clamp((Number(err.ct1)||0)*f(dyn),0,95);
+  const c2=clamp((Number(err.ct2)||0)*f(dyn),0,95);
+  const mm=clamp(Number(err.mm)||0,-30,30);
+  return { i1:I, i2:I,
+    i1m:Math.max(0,I*(1-c1/100)), i2m:Math.max(0,I*(1-c2/100)*(1+mm/100)),
+    ct1Eff:c1, ct2Eff:c2 };
+}
+/* Jejak titik terukur utk sweep I dari 0.2 → I (koordinat [irt,iop] measured). */
+function obsPath(m,I,N){
+  const n=N||48, from=0.2, out=[];
+  for(let j=0;j<=n;j++){
+    const cur=from+(I-from)*j/n;
+    const e=obsEff(m,cur);
+    out.push([irtOf(e.i1m,e.i2m,m.method), iopOf(e.i1m,e.i2m)]);
+  }
+  return out;
+}
 /* Evaluasi satu titik thd kurva — DERIVED, TIDAK pernah disimpan di objek titik.
    Titik 'calc' & probe membawa i1/i2 (koordinat DITURUNKAN dari arus TERUKUR —
    faktor kesalahan ikut — & metode restraint saat ini); titik manual membawa
@@ -644,7 +712,12 @@ function measuredPair(i1,i2,err){
    sejati (irtTrue/iopTrue) & arus terukur (i1m/i2m) dilaporkan utk digambar. */
 function evaluatePoint(m,pt){
   const hasI=pt.i1!=null&&pt.i2!=null;
-  const a=hasI?measuredPair(pt.i1,pt.i2,m.err):null;
+  /* Titik PENGAMATAN (pt.obsI) → pasangan terukur dari obsEff(m, obsI): saturasi
+     dinamis ikut, dan selalu dihitung ulang (tak basi thd perubahan err/metode).
+     Koordinat sejati tetap dari i1/i2 murni. Titik biasa → measuredPair statis. */
+  const a=hasI?(pt.obsI!=null
+    ? (()=>{ const e=obsEff(m,pt.obsI); return {i1m:e.i1m,i2m:e.i2m}; })()
+    : measuredPair(pt.i1,pt.i2,m.err)):null;
   const irt=hasI?irtOf(a.i1m,a.i2m,m.method):pt.irt;
   const iop=hasI?iopOf(a.i1m,a.i2m):pt.iop;
   const irtTrue=hasI?irtOf(pt.i1,pt.i2,m.method):irt;
@@ -681,7 +754,7 @@ function curveSample(m,xMax){
 /* =========================================================
    BINDING KONTROL → S → render()
    ========================================================= */
-let animTimer=null;
+let animTimer=null, obsTimer=null;
 function refresh(){ render(); }
 function bindPair(rangeId,numId,key,lo,hi,dec,suffix,outId){
   const r=$(rangeId), n=$(numId), out=outId?$(outId):null;
@@ -787,6 +860,8 @@ function removePoint(id){ P.points=P.points.filter(p=>p.id!==id);
   if(P.selectedId===id) P.selectedId=null;
   render(); }
 function clearPoints(){ P.points=[]; P.selectedId=null; P.editId=null; P.probe=null; P.probeTrace=null;
+  P.obs.on=false; P.obs.play=false;
+  if(obsTimer){ clearInterval(obsTimer); obsTimer=null; }
   const cb=$('addPointBtn'); if(cb) cb.textContent='Tambahkan titik ke plot';
   render(); }
 $('clearPoints').addEventListener('click',clearPoints);
@@ -835,7 +910,7 @@ function syncErrDom(){
   ['ct1','ct2','mm'].forEach(k=>{
     const v=P.err[k];
     const r=$('err-'+k), n=$('err-'+k+'n'), o=$('errv-'+k);
-    if(r) r.value=v; if(n) n.value=v; if(o) o.textContent=fmt(v,0)+'%';
+    if(r) r.value=v; if(n) n.value=v; if(o) o.textContent=(k==='mm'&&v>0?'+':'')+fmt(v,0)+'%';
   });
 }
 function applyErr(ct1,ct2,mm){
@@ -848,7 +923,7 @@ function zeroErrors(){ applyErr(0,0,0); render(); }
 function bindErr(key,lo,hi){
   const r=$('err-'+key), n=$('err-'+key+'n'), out=$('errv-'+key);
   const commit=v=>{ v=clamp(Number(v),lo,hi); P.err[key]=v;
-    if(r) r.value=v; if(n) n.value=v; if(out) out.textContent=fmt(v,0)+'%'; };
+    if(r) r.value=v; if(n) n.value=v; if(out) out.textContent=(key==='mm'&&v>0?'+':'')+fmt(v,0)+'%'; };
   if(r) r.addEventListener('input',()=>{ commit(r.value); refresh(); });
   if(n){
     n.addEventListener('change',()=>{ commit(n.value); refresh(); });
@@ -883,10 +958,73 @@ document.querySelectorAll('#scenarioGroup button').forEach(b=>b.addEventListener
   runScenario(b.dataset.v);
 }));
 
+/* ---------- mode pengamatan arus sistem (through-sweep I₁=I₂=I) ----------
+   Slider/prasetel/play mengaktifkan P.obs.on → P.probe {i1,i2,obsI,source:'obs'}.
+   Koordinat & status DERIVED: evaluatePoint membaca pasangan terukur lewat obsEff(m,
+   obsI) — saturasi dinamis ikut & tak pernah basi thd perubahan err/metode. Jejak
+   (data-obs-path) & perluasan sumbu di renderPlane; readout obsOut + kartu kanan. */
+function syncObsDom(){
+  const r=$('obsI'), n=$('obsIn'), o=$('obsIv');
+  if(r) r.value=P.obs.I; if(n) n.value=P.obs.I;
+  if(o) o.textContent=fmt(P.obs.I,1)+' pu';
+  const db=$('obsDyn');
+  if(db){ db.textContent='Saturasi CT dinamis: '+(P.obs.dyn?'AKTIF':'NONAKTIF'); db.classList.toggle('on',P.obs.dyn); }
+}
+function applyObs(v){
+  if(v!=null) P.obs.I=clamp(Number(v),0.2,12);
+  P.obs.on=true;
+  syncObsDom();
+  if(animTimer) stopAnim(null);      // eksklusif dgn animasi sapuan
+  P.probeTrace=null;
+  P.probe={i1:P.obs.I,i2:P.obs.I,obsI:P.obs.I,source:'obs'};
+  render();
+}
+function updateObsOut(){
+  const el=$('obsOut'); if(!el) return;
+  const on=P.obs&&P.obs.on&&P.probe&&P.probe.source==='obs';
+  if(!on){ el.innerHTML='I — pu'; return; }
+  const d=evaluatePoint(P,P.probe);
+  const col=d.status==='TRIP'?'var(--red)':d.status==='AMBANG'?'var(--copper)':'var(--green)';
+  let s=`I ${fmt(P.obs.I,1)} pu · Iop <b>${fmt(d.iop)}</b> pu · Irt <b>${fmt(d.irt)}</b> pu · <b style="color:${col}">${d.status}</b>`;
+  if(P.obs.dyn){ const e=obsEff(P,P.obs.I); s+=` <span style="color:var(--copper);">· ct₁ eff ${fmt(e.ct1Eff,0)}% · ct₂ eff ${fmt(e.ct2Eff,0)}%</span>`; }
+  el.innerHTML=s;
+}
+function obsStop(){
+  if(obsTimer){ clearInterval(obsTimer); obsTimer=null; }
+  P.obs.play=false;
+  const b=$('obsPlay'); if(b){ b.textContent='▶ Amati: kecil → besar'; b.classList.remove('playing'); }
+}
+function obsPlay(){
+  const btn=$('obsPlay');
+  if(obsTimer){ obsStop(); if(P.obs.on) render(); return; }
+  if(animTimer) stopAnim(null);
+  P.obs.play=true;
+  if(btn){ btn.textContent='⏸ Hentikan'; btn.classList.add('playing'); }
+  let dir=1;
+  obsTimer=setInterval(()=>{
+    let I=P.obs.I+0.06*dir;
+    if(I>=12){ I=12; dir=-1; }
+    if(I<=0.2){ I=0.2; dir=1; }
+    applyObs(I);
+  },40);
+}
+['obsI','obsIn'].forEach(id=>{ const el=$(id);
+  if(el) el.addEventListener('input',()=>applyObs(parseFloat(el.value)));
+});
+document.querySelectorAll('#obsPreset button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#obsPreset button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  applyObs(parseFloat(b.dataset.v));
+}));
+$('obsDyn').addEventListener('click',()=>{ P.obs.dyn=!P.obs.dyn; syncObsDom(); applyObs(); });
+$('obsPlay').addEventListener('click',obsPlay);
+
 /* ---------- animasi sapuan: eksternal → internal ---------- */
 $('animateBtn').addEventListener('click',()=>{
   const btn=$('animateBtn');
   if(animTimer){ stopAnim(btn); return; }
+  if(obsTimer) obsStop();           // eksklusif dgn mode pengamatan
+  P.obs.on=false; P.obs.play=false;
   btn.textContent='⏸ Hentikan animasi'; btn.classList.add('playing');
   P.probeTrace=[];
   const I1=4.0;
@@ -960,7 +1098,14 @@ function renderPlane(){
   const padL=PAD.L,padR=PAD.R,padT=PAD.T,padB=PAD.B;
   const plotW=dims.w-padL-padR, plotH=dims.h-padT-padB;
   const dom=computeDomain(m);
-  const {xMax,yMax}=dom;
+  let {xMax,yMax}=dom;
+  /* mode pengamatan: perluas jendela agar jejak & titik arus besar tak terpotong */
+  if(P.obs&&P.obs.on&&P.probe){
+    const d=evaluatePoint(m,P.probe);
+    if(d.irt*1.06>xMax) xMax=niceCeil(d.irt*1.06);
+    const needY=Math.max(thresholdTol(m,d.irt)*1.05, d.iop*1.15, 1);
+    if(needY>yMax) yMax=niceCeil(needY);
+  }
   const map={m,padL,padR,padT,padB,plotW,plotH,xMax,yMax};
   plane._map=map;
   const Xx=irt=>padL+(irt/xMax)*plotW;
@@ -1038,6 +1183,14 @@ function renderPlane(){
   if(P.probeTrace&&P.probeTrace.length>1){
     const tr=P.probeTrace.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
     ptsStr=`<polyline points="${tr}" fill="none" stroke="var(--copper)" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.7"/>`+ptsStr;
+  }
+  /* jejak mode pengamatan: path measured I kecil → I sekarang (biru putus-putus) */
+  if(P.obs&&P.obs.on&&P.probe){
+    const op=obsPath(P,P.obs.I);
+    if(op.length>1){
+      const tr=op.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
+      ptsStr=`<polyline points="${tr}" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.85" clip-path="url(#pc)" data-obs-path/>`+ptsStr;
+    }
   }
 
   plane.innerHTML=`
@@ -1177,9 +1330,11 @@ function renderSide(){
   if(d){
     const t=d.thr;
     const fromI=selPt.i1!=null&&selPt.i2!=null;
-    const srcTxt=(selPt.source==='calc'||selPt.source==='probe')
+    const obsMode=P.obs&&P.obs.on&&selPt.source==='obs';
+    const srcTxt=obsMode?'Arus sistem (I₁=I₂=I)'
+      : ((selPt.source==='calc'||selPt.source==='probe')
       ? (fromI?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
-      : (fromI?'Animasi sapuan':'Klik pada plot');
+      : (fromI?'Animasi sapuan':'Klik pada plot'));
     /* hero Irt/Iop — dua nilai utama DITONJOLKAN; baris Irt/Iop biasa dihapus */
     const tolOn=(Number(P.tol)||0)>0;
     rowsTitik=`
@@ -1358,6 +1513,7 @@ function render(){
   renderSide();
   renderWarnings();
   updateCalcPreview();
+  updateObsOut();
 }
 
 /* ---------- splash pembuka (sama dgn Distance Relay) ---------- */
@@ -1420,11 +1576,13 @@ syncCollapsedCentering();
 const API={
   render, S, P,
   thresholdAt, thresholdTol, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair,
+  satFactor, obsEff, obsPath,
   computeDomain, curveSample, slopeLine,
   slopeList, SL,
   syncCollapsedCentering,
   addPoint, selectPoint, clearPoints, removePoint,
   applyErr, zeroErrors, runScenario, commitCalcAdd,
+  applyObs, obsStop, obsPlay,
   renderPlane, setMethod, stopAnim,
   hoverInfo
 };

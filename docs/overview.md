@@ -32,7 +32,9 @@ menghitung titik dari arus dua sisi (I1, I2).
   digambar (margin ±10 px); **panduan via ikon "?"** (`span.q[data-tip]` → tooltip
   `#qTip`) — teks petunjuk permanen di panel dihapus; **pita toleransi ambang**
   (slider `tol`, keputusan 3 status TRIP/AMBANG/RESTRAIN, pita copper `data-band`);
-  **titik kalkulator bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`).
+  **titik kalkulator bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`);
+  **mode pengamatan arus sistem** (sweep through-current + saturasi dinamis, kartu
+  ke-4); **default error CT non-nol** (5%/5%/+10% = CT 5P + tap, bukan 0).
 
 ## Menjalankan
 
@@ -55,16 +57,17 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `CLAUDE.md` | Panduan arsitektur/konvensi untuk agen coding. |
 | `README.md` | Deskripsi publik + cara menjalankan + validasi. |
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
-| `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status, 47 asersi). `node tools/model.test.js`. |
+| `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status + obs, 53 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (63 asersi). `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (70 asersi). `node tools/ui.test.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
 
 1. **Helper** (`fmt`, `clamp`, `fmtSign`, `niceCeil`/`niceStep` 1-2-5) — dipakai renderer grid.
-2. **State global** — satu objek `S`: `S.param` (`P`) = `{pickup, method, slopes[], i1, i2,
-   err:{ct1,ct2,mm}, points[], selectedId, probe, probeTrace}`; `S.ui.collapsed` = status
-   collapse kartu (curve/err/calc). Semua kontrol menulis ke `S`/`P`; tidak ada state lain.
+2. **State global** — satu objek `S`: `S.param` (`P`) = `{pickup, method, tol, slopes[],
+   i1, i2, err:{ct1,ct2,mm} (default 5/5/+10 = DEFAULT_ERR), obs:{on,I,dyn,...}, points[],
+   selectedId, editId, probe, probeTrace}`; `S.ui.collapsed` = status collapse kartu
+   (curve/err/calc/obs). Semua kontrol menulis ke `S`/`P`; tidak ada state lain.
 3. **Model murni** (dipakai renderer + tes):
    - `iopOf(i1,i2)=|i1−i2|`; `irtOf(i1,i2,method)` = Average `(|i1|+|i2|)/2` atau
      Maximum `max(|i1|,|i2|)`.
@@ -79,14 +82,21 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
    - `measuredPair(i1,i2,err)` — arus yang DILIHAT relay setelah faktor kesalahan:
      `I1m=I1·(1−ct1/100)`, `I2m=I2·(1−ct2/100)·(1+mm/100)` (ct = saturasi/rasio sisi,
      0..95%; mm = mismatch rasio ±30% pd I₂). Error hanya menggeser titik ber-I1/I2
-     (kalkulator/skenario/probe); titik manual sudah di bidang terukur.
+     (kalkulator/skenario/probe); titik manual sudah di bidang terukur. **Default err
+     NON-NOL** (`DEFAULT_ERR` 5%/5%/+10% = CT 5P + offset rasio/tap).
+   - Mode pengamatan & saturasi dinamis (murni): `satFactor(i,knee,gain)` (faktor ct
+     efektif: 1 di bawah knee, linier → gain di 3·knee), `obsEff(m,I)` (pasangan
+     terukur + `ct1Eff/ct2Eff` utk arus sistem I; dyn ON = ct×faktor),
+     `obsPath(m,I)` (jejak measured 0.2→I). Titik pengamatan `{i1:I,i2:I,obsI:I}` →
+     `evaluatePoint` menghitung terukur via `obsEff(m,obsI)` — tak basi thd perubahan
+     err/metode.
    - `evaluatePoint(m,pt)` — evaluasi DERIVED satu titik thd kurva kini: titik manual
      memakai `{irt,iop}` simpanannya, titik `'calc'`/probe menurunkan koordinat dari
      pasangan TERUKUR `measuredPair` + metode restraint. Hasil
      `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,trueStatus}` —
      keputusan selalu di titik TERUKUR; koordinat/status SEJATI dilaporkan untuk ghost
-     & baris "Sejati/Status sejati". Default `err` 0 → identik dgn arus asli (literal
-     lama tetap hijau). Dipakai renderPlane/renderTable/renderSide/tooltip (diuji
+     & baris "Sejati/Status sejati". Objek `m` sintetis tanpa `err` → dianggap 0 (literal
+     model bebas error). Dipakai renderPlane/renderTable/renderSide/tooltip (diuji
      model.test.js).
    - `hoverInfo(map,irt,iop)` — tooltip murni: hanya ELEMEN yang digambar (titik
      uji/probe, marker BP, garis pickup, kurva ambang), masing-masing dgn margin ±10 px
@@ -154,14 +164,20 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
   semantik, jangan dipakai dekoratif.
 - **Animasi sapuan**: `P.probe` = titik live; `P.probeTrace` = jejak (Iop naik);
   saat tombol ditekan lagi / selesai → `stopAnim()`; probe tidak masuk tabel.
+- **Mode pengamatan arus sistem** (kartu ke-4): `I₁=I₂=I` disapu 0.2–12 pu
+  (slider/prasetel/▶ ping-pong) dgn error CT aktif; titik `obsI` + jejak
+  `polyline[data-obs-path]`; sumbu melebar otomatis (renderPlane); `#obsOut` live
+  (nilai + status + ct efektif); eksklusif dgn animasi sapuan. Pelajaran kunci: error
+  proporsional → margin % konstan (arus besar TIDAK mendekatkan trip); yang melewati
+  slope hanya error yang membesar (toggle saturasi dinamis / ct asimetris).
 
 ## Validasi (tanpa build)
 
 ```bash
-node tools/model.test.js       # 42 asersi literals model (PRD §5 + measuredPair/error)
+node tools/model.test.js       # 53 asersi literals model (PRD §5 + error + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 53 asersi seam desain + perilaku UI (hoverInfo, legend 3 item,
-                               #    errOut, tooltip class .show, scrollbar global)
+node tools/ui.test.js          # 70 asersi seam desain + perilaku UI (hoverInfo, legend,
+                               #    errOut, tooltip .show, scrollbar, collapse 4 kartu, obs)
 ```
 
 Harness mengabaikan CSS & tidak punya hirarki DOM anak — teks status dibaca dari

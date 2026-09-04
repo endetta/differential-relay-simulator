@@ -11,9 +11,10 @@ bidang **Iop–Irt** (arus operasi vs arus restraint/bias): kurva ambang **multi
 (pickup, slope 1..N, breakpoint) + **pita toleransi** (keputusan 3 status TRIP/AMBANG/
 RESTRAIN), titik uji (klik/seret + dari kalkulator I1/I2 — **bisa diedit ulang**), kartu
 **faktor kesalahan pengukuran** (error/saturasi CT per sisi + mismatch rasio → titik
-sejati vs titik terukur), tooltip hover elemen plot, panduan via **ikon "?"** (bukan teks
-permanen), plus preset, skenario arus (incl. Inrush sbg pembanding), dan animasi sapuan
-*eksternal → internal*.
+sejati vs titik terukur; **default realistis 5%/5%/+10%** = CT 5P + tap), **mode
+pengamatan arus sistem** (sweep through-current I₁=I₂=I dgn jejak & saturasi dinamis),
+tooltip hover elemen plot, panduan via **ikon "?"** (bukan teks permanen), plus preset,
+skenario arus (incl. Inrush sbg pembanding), dan animasi sapuan *eksternal → internal*.
 Untuk orientasi cepat (TL;DR, peta file, gotcha) baca `docs/overview.md`; **model &
 rumus**: `docs/PRD.md` §5 (sumber kebenaran — jangan ubah rumus inti tanpa memperbarui
 dokumen itu juga).
@@ -38,9 +39,9 @@ Buka `.html` langsung di browser (`file:///...`), atau static server
 Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 
 ```bash
-node tools/model.test.js       # 47 asersi literals model murni (PRD §5 + error CT + toleransi)
+node tools/model.test.js       # 53 asersi literals model murni (PRD §5 + error CT + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 63 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 70 asersi seam desain & perilaku UI
 ```
 
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
@@ -60,10 +61,13 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 1. **Helper** — `fmt`, `clamp`, `fmtSign`, `niceCeil`/`niceStep` (grid 1-2-5).
 2. **State global** `S` — `S.param` (`P`): `pickup`, `method` (`'average'|'maximum'`),
    `slopes[]` (`{id,percent,breakpoint}`; **slope terakhir `breakpoint:null`** = sampai
-   ∞),   `i1`/`i2`, `err` = `{ct1,ct2,mm}` (faktor kesalahan %, lihat model), `tol` = pita
-   toleransi ambang % (default 10), `points[]` (`{id,source:'manual'|'calc',irt,iop,i1,
-   i2}`), `selectedId`, `editId` (titik 'calc' yg sedang diedit via kalkulator),
-   `probe`/`probeTrace` (animasi). `S.ui.collapsed`. Semua kontrol menulis ke `S`; tidak ada state lain.
+   ∞), `i1`/`i2`, `err` = `{ct1,ct2,mm}` (faktor kesalahan %, lihat model) — default
+   `DEFAULT_ERR={ct1:5,ct2:5,mm:10}` (CT 5P + offset rasio/tap, BUKAN 0; `zeroErrors()`
+   untuk menolkan), `tol` = pita toleransi ambang % (default 10), `obs` =
+   `{on,I,dyn,knee,gain,play}` (mode pengamatan arus sistem), `points[]`
+   (`{id,source:'manual'|'calc',irt,iop,i1,i2}`), `selectedId`, `editId` (titik 'calc'
+   yg sedang diedit via kalkulator), `probe`/`probeTrace` (animasi). `S.ui.collapsed`
+   (curve/err/calc/obs). Semua kontrol menulis ke `S`; tidak ada state lain.
 3. **Model murni** — `iopOf`, `irtOf`, `slopeLine` (kumulatif), `thresholdAt
    = max(pickup, slopeLine)`, `thresholdTol = kurva×(1+tol/100)` (batas trip dgn pita
    toleransi), `tripState`/`statusOf` (3 status: RESTRAIN ≤ kurva · AMBANG di dalam
@@ -76,8 +80,18 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    saturasi 0..95% mengecilkan; mm mismatch ±30% faktor pada I₂). `evaluatePoint` untuk
    titik `i1/i2` memakai pasangan TERUKUR ini sebagai keputusan, dan melaporkan juga
    koordinat sejati: `{irt,iop,irtTrue,iopTrue,hasErr,i1m,i2m,thr,status,margin,
-   trueStatus}` (`hasErr` = koordinat bergeser). `err` default 0 → semua literal lama
-   tetap berlaku; objek `m` sintetis tanpa `err` aman (dianggap 0).
+   trueStatus}` (`hasErr` = koordinat bergeser). **Default `err` = `DEFAULT_ERR`
+   (5%/5%/+10%)** — objek `m` sintetis TANPA `err` dianggap `ERR0` (0) agar literal
+   model tetap bebas error.
+   **Mode pengamatan arus sistem** (through-sweep `I₁=I₂=I`, eksklusif dgn animasi):
+   `satFactor(i,knee,gain)` = faktor saturasi dinamis (1 di bawah knee, linier ke gain
+   di 3·knee); `obsEff(m,I)` = pasangan terukur + `ct1Eff/ct2Eff` utk arus sistem I
+   (dyn ON: ct efektif = ct×faktor — membesar di arus tinggi); `obsPath(m,I)` = jejak
+   measured dari 0.2→I. Titik pengamatan = `P.probe` `{i1:I,i2:I,obsI:I,source:'obs'}`
+   → `evaluatePoint` membaca pasangan terukur lewat `obsEff(m,obsI)` (bukan menyimpan
+   nilai turunan → tak basi thd perubahan err/metode). Pelajaran: error proporsional
+   → jejak LURUS & margin % konstan dlm satu segmen slope; yang menyeberang slope di
+   arus tinggi hanya error yang MEMBESAR (saturasi dinamis / ct asimetris).
    Daftar slope diurus **modul `slopeList`** (`SL` membungkus `P.slopes`): satu-satunya
    pemilik invariant & clamp (percent 1–200; bp monoton naik gap 0.1, pertama ≥0.6,
    ≤20; terakhir open; 1..4; Slope 1 dilindungi; id internal). Perintah
@@ -111,6 +125,13 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    memuat I1/I2-nya ke `#i1/#i2` + set `P.editId` (tombol `#addPointBtn` jadi
    "Perbarui titik #N"); `commitCalcAdd` memperbarui titik itu — tanpa edit ia
    menambah titik baru.
+   **Kartu Pengamatan arus sistem** (kartu ke-4, `data-card="obs"`): slider `#obsI`
+   (0.2–12 pu) + prasetel (Ringan/Penuh/Fault/Berat) + toggle `#obsDyn` (saturasi
+   dinamis) + `▶ #obsPlay` (ping-pong kecil↔besar). `applyObs(I)` menyalakan mode →
+   `P.probe` obs (`obsI`), jejak `polyline[data-obs-path]`, perluasan sumbu
+   (renderPlane), `#obsOut` live (nilai + status + ct efektif). Eksklusif dgn animasi
+   sapuan: `obsStop()` / `stopAnim()` saling mematikan; `clearPoints()` juga
+   mematikan mode.
 7. **`render()`** master: render plane → tabel → sisi → warnings → preview kalkulator.
    Tak ada status titik yang disimpan — renderer menurunkannya sendiri via
    `evaluatePoint` thd kurva saat ini.
@@ -146,6 +167,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - **Keputusan 3 status** (`tripState`/`statusOf`): RESTRAIN/AMBANG/TRIP; AMBANG =
   copper (`var(--copper)`/`-soft`, class `.badge.AMBANG`) — warna semantik baru,
   jangan dipakai dekoratif. Margin selalu thd kurva, bukan batas pita.
+- **Default error NON-NOL** (`DEFAULT_ERR` 5%/5%/+10%). Jangan kembalikan default 0
+  tanpa alasan kuat — itu keputusan desain (parameter sistem nyata). Tes lama yang
+  butuh err=0 memanggil `zeroErrors()` eksplisit di awal suite.
 - **Edit titik 'calc'**: `selectPoint` memuat I1/I2 ke kalkulator & set `P.editId`;
   `commitCalcAdd` memperbarui titik itu (tidak menambah baru). Titik manual tak punya
   I1/I2 → hanya bisa dipindah via seret.

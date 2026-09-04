@@ -82,6 +82,18 @@ const { render, P, S, thresholdAt, statusOf, iopOf, irtOf, evaluatePoint, addPoi
 render();
 const svg = () => E.plane.innerHTML;
 
+/* default error CT NON-NOL (keputusan sesi): ct1=5% ct2=5% mm=+10% — kelas akurasi
+   5P per sisi + offset rasio/tap ~10%. Setelah asersi, suite lama dinolkan agar
+   literal lama (err=0) tetap berlaku. */
+check('default error CT realistis (5%/5%/+10%) — bukan nol, sesuai CT 5P + tap', () => {
+  if (Math.abs(pub.P.err.ct1 - 5) > 1e-9 || Math.abs(pub.P.err.ct2 - 5) > 1e-9 || Math.abs(pub.P.err.mm - 10) > 1e-9)
+    throw new Error('default err harus 5/5/10: ' + JSON.stringify(pub.P.err));
+  contains(src, 'value="5"', 'slider error default 5%');
+  contains(src, 'value="10"', 'slider mismatch default 10%');
+  contains(src, 'DEFAULT_ERR', 'konstanta DEFAULT_ERR');
+  zeroErrors(); render();   // literal suite lama diasumsikan err = 0
+});
+
 check('SVG plane: label DAERAH TRIP & RESTRAIN + sumbu', () => {
   contains(svg(), 'DAERAH TRIP', 'svg');
   contains(svg(), 'DAERAH RESTRAIN', 'svg');
@@ -164,12 +176,12 @@ check('warnings: kurva legal → kosong (modul mengembalikan [])', () => {
   if (E.warnings.innerHTML !== '') throw new Error('default harus tanpa warning');
 });
 
-/* pemusatan saat semua kartu diciutkan (3 kartu: curve/err/calc) */
-check('syncCollapsedCentering: semua ciut → .all-collapsed (3 kartu)', () => {
-  S.ui.collapsed.curve = true; S.ui.collapsed.calc = true; S.ui.collapsed.err = true;
+/* pemusatan saat semua kartu diciutkan (4 kartu: curve/err/calc/obs) */
+check('syncCollapsedCentering: semua ciut → .all-collapsed (4 kartu)', () => {
+  S.ui.collapsed.curve = true; S.ui.collapsed.calc = true; S.ui.collapsed.err = true; S.ui.collapsed.obs = true;
   syncCollapsedCentering();
   if (!E.paramsPanel.classList.contains('all-collapsed')) throw new Error('paramsPanel harus all-collapsed');
-  S.ui.collapsed.curve = false; S.ui.collapsed.calc = false; S.ui.collapsed.err = false;
+  S.ui.collapsed.curve = false; S.ui.collapsed.calc = false; S.ui.collapsed.err = false; S.ui.collapsed.obs = false;
   syncCollapsedCentering();
   if (E.paramsPanel.classList.contains('all-collapsed')) throw new Error('all-collapsed harus dilepas');
 });
@@ -240,7 +252,7 @@ check('kartu Faktor kesalahan hadir (slider ct1/ct2/mm + reset)', () => {
 check('kartu error di antara kurva & kalkulator (collapse ke-3)', () => {
   const iCurve = src.indexOf('data-card="curve"'), iErr = src.indexOf('data-card="err"'), iCalc = src.indexOf('data-card="calc"');
   if (!(iCurve < iErr && iErr < iCalc)) throw new Error('urutan kartu harus kurva < err < calc');
-  contains(src, 'collapsed:{curve:false,err:false,calc:false}', 'state collapse 3 kartu');
+  contains(src, 'collapsed:{curve:false,err:false,calc:false,obs:false}', 'state collapse 4 kartu');
 });
 check('skenario Inrush hadir (pembanding: kurva saja belum cukup)', () => {
   contains(src, 'data-v="inrush"', 'tombol inrush');
@@ -546,6 +558,77 @@ check('titik manual tak masuk mode edit; commitCalcAdd saat tak edit = tambah ba
   pub.commitCalcAdd();
   if (P.points.length !== 2) throw new Error('harus tambah 1 titik: ' + P.points.length);
   if (P.points[1].i1 !== 7 || P.points[1].i2 !== 1) throw new Error('titik baru harus 7/1');
+});
+
+
+/* ===== fitur: mode pengamatan arus sistem (through-sweep I₁=I₂=I) ===== */
+check('kartu Pengamatan arus sistem (obs) hadir — setelah kalkulator; kontrol lengkap', () => {
+  const iCalc = src.indexOf('data-card="calc"'), iObs = src.indexOf('data-card="obs"');
+  if (!(iCalc > 0 && iObs > iCalc)) throw new Error('kartu obs harus setelah kalkulator');
+  ['obsI', 'obsIn', 'obsIv', 'obsDyn', 'obsPlay', 'obsOut', 'obsPreset'].forEach(id => contains(src, 'id="' + id + '"', id));
+  contains(src, 'Pengamatan arus sistem', 'judul kartu');
+  contains(src, 'Saturasi CT dinamis', 'tombol dyn');
+  contains(src, 'collapsed:{curve:false,err:false,calc:false,obs:false}', 'collapse key obs');
+});
+check('skenario Normal memakai DEFAULT error (5/5/10) — slider tak melompat ke 0', () => {
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 0; pub.P.err.mm = 0;
+  pub.runScenario('normal');
+  if (pub.P.err.ct1 !== 5 || pub.P.err.ct2 !== 5 || pub.P.err.mm !== 10) throw new Error('normal harus DEFAULT_ERR: ' + JSON.stringify(pub.P.err));
+});
+check('applyObs: probe I₁=I₂=I, jejak data-obs-path, sumbu melebar utk arus besar', () => {
+  clearPoints();
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 0; pub.P.err.mm = 10;
+  pub.P.obs.dyn = false; pub.P.obs.on = false;
+  pub.applyObs(6);
+  if (!pub.P.obs.on) throw new Error('obs harus on setelah applyObs');
+  if (!pub.P.probe || Math.abs(pub.P.probe.i1 - 6) > 1e-9 || Math.abs(pub.P.probe.i2 - 6) > 1e-9)
+    throw new Error('probe harus 6/6: ' + JSON.stringify(pub.P.probe));
+  render();
+  contains(svg(), 'data-obs-path', 'jejak pengamatan digambar');
+  const d = pub.evaluatePoint(pub.P, pub.P.probe);
+  if (d.status !== 'RESTRAIN') throw new Error('6× dgn mm10 harus RESTRAIN: ' + d.status);
+  pub.applyObs(12); render();
+  contains(svg(), '>20</text>', 'sumbu melebar (tick 20 ada) saat I=12');
+  if (svg().includes('data-obs-path') === false) throw new Error('jejak tetap ada');
+  pub.P.obs.on = false; pub.P.probe = null;
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 0; pub.P.err.mm = 0;
+  render();
+});
+check('sweep proporsional (dyn off): rasio Iop/Irt KONSTAN utk arus besar (tak makin dekat trip)', () => {
+  pub.P.err.ct1 = 5; pub.P.err.ct2 = 5; pub.P.err.mm = 10;
+  pub.P.obs.dyn = false;
+  pub.applyObs(6); const d6 = pub.evaluatePoint(pub.P, pub.P.probe);
+  pub.applyObs(8); const d8 = pub.evaluatePoint(pub.P, pub.P.probe);
+  const r6 = d6.iop / d6.irt, r8 = d8.iop / d8.irt;
+  if (Math.abs(r6 - r8) > 1e-9) throw new Error('rasio harus konstan: ' + r6 + ' vs ' + r8);
+  if (d6.status !== 'RESTRAIN' || d8.status !== 'RESTRAIN') throw new Error('harus RESTRAIN di 6×/8×');
+  if (!(d8.margin < 0)) throw new Error('margin negatif');
+});
+check('saturasi dinamis: di arus tinggi error efektif membesar → titik melewati slope (TRIP)', () => {
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 20; pub.P.err.mm = 0;
+  pub.P.obs.dyn = true;
+  pub.applyObs(4);
+  const d4 = pub.evaluatePoint(pub.P, pub.P.probe);   // ct2 eff 20% → RESTRAIN
+  if (d4.status !== 'RESTRAIN') throw new Error('4× harus RESTRAIN: ' + d4.status);
+  pub.applyObs(12);
+  const d12 = pub.evaluatePoint(pub.P, pub.P.probe);  // ct2 eff 50% → TRIP
+  if (d12.status !== 'TRIP') throw new Error('12× dgn saturasi dinamis harus TRIP: ' + d12.status);
+  if (!(d12.margin > 0)) throw new Error('margin harus positif: ' + d12.margin);
+  contains(E.obsOut.innerHTML, 'TRIP', 'obsOut menampilkan status');
+});
+check('obsDyn nonaktif = error statis di arus berapa pun', () => {
+  pub.P.err.ct1 = 0; pub.P.err.ct2 = 20; pub.P.err.mm = 0;
+  pub.P.obs.dyn = false;
+  pub.applyObs(4); const e4 = pub.obsEff(pub.P, 4);
+  pub.applyObs(12); const e12 = pub.obsEff(pub.P, 12);
+  if (Math.abs(e4.ct2Eff - 20) > 1e-9 || Math.abs(e12.ct2Eff - 20) > 1e-9) throw new Error('dyn off harus 20% selalu');
+  const d12 = pub.evaluatePoint(pub.P, pub.P.probe);
+  if (d12.status !== 'RESTRAIN') throw new Error('dyn off → 12× RESTRAIN: ' + d12.status);
+  /* bersihkan: default err + dyn on + obs off */
+  pub.applyErr(5, 5, 10);
+  pub.P.obs.dyn = true;
+  pub.P.obs.on = false; pub.P.probe = null;
+  render();
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

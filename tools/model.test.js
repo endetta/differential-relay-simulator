@@ -17,7 +17,7 @@ function approx(act, exp, tol, ctx) {
 }
 
 const ctx = loadSimulator(HTML);
-const { iopOf, irtOf, slopeLine, thresholdAt, thresholdTol, statusOf, tripState, marginOf, evaluatePoint, measuredPair, computeDomain, render } = ctx.pub;
+const { iopOf, irtOf, slopeLine, thresholdAt, thresholdTol, statusOf, tripState, marginOf, evaluatePoint, measuredPair, computeDomain, satFactor, obsEff, obsPath, render } = ctx.pub;
 
 /* Konfigurasi default PRD §5.5: pickup 0.30, s1 25% @ 2.0, s2 65% → ∞ */
 const M = { pickup: 0.30, method: 'average', slopes: [
@@ -224,6 +224,67 @@ check('evaluatePoint dlm pita → status AMBANG; margin tetap thd kurva (+10%)',
 check('domain: yMax menutupi pita toleransi (tak terpotong di tol tinggi)', () => {
   const dd = computeDomain({ ...M, tol: 60 });
   if (thresholdTol({ ...M, tol: 60 }, dd.xMax) > dd.yMax + 1e-9) throw new Error('pita terpotong yMax');
+});
+
+/* ===== fitur: mode pengamatan arus sistem (through-sweep) + saturasi dinamis =====
+   Sweep I₁=I₂=I (gangguan eksternal/beban). Error proporsional statis → titik di
+   bidang bergerak lurus (margin % konstan dlm satu segmen slope); saturasi dinamis
+   (opsional, hanya utk titik pengamatan) membuat ct efektif membesar saat I melewati
+   knee → titik melengkung & bisa menyeberang slope. */
+const OBS = { pickup: 0.30, method: 'average', slopes: M.slopes, err: { ct1: 0, ct2: 20, mm: 0 }, obs: { dyn: true, knee: 4, gain: 2.5 } };
+check('satFactor: knee → 1, kap 3·knee → gain, tengah linier; bawah knee = 1', () => {
+  approx(satFactor(2, 4, 2.5), 1, 1e-9, 'bawah knee');
+  approx(satFactor(4, 4, 2.5), 1, 1e-9, 'tepat knee');
+  approx(satFactor(6, 4, 2.5), 1.375, 1e-9, 'linier 4..12 (1+(1.5)(2/8))');
+  approx(satFactor(12, 4, 2.5), 2.5, 1e-9, 'kap gain @12');
+  approx(satFactor(20, 4, 2.5), 2.5, 1e-9, 'datar setelah kap');
+});
+check('obsEff: dyn ON → ct2 20% membesar jadi 50% @12× (i2m 6); dyn OFF → statis', () => {
+  const e12 = obsEff(OBS, 12);
+  approx(e12.ct2Eff, 50, 1e-9, 'ct2 efektif @12');
+  approx(e12.ct1Eff, 0, 1e-9, 'ct1 tetap');
+  approx(e12.i1m, 12, 1e-9, 'i1m 12');
+  approx(e12.i2m, 6, 1e-9, 'i2m 6 (12·(1−0.5))');
+  const e6 = obsEff(OBS, 6);
+  approx(e6.ct2Eff, 27.5, 1e-9, 'ct2 efektif @6 = 20×1.375');
+  const st = obsEff({ ...OBS, obs: { dyn: false, knee: 4, gain: 2.5 } }, 12);
+  approx(st.ct2Eff, 20, 1e-9, 'dyn off = statis');
+  approx(st.i2m, 9.6, 1e-9, 'i2m statis 12·0.8');
+});
+check('obsEff: mm tetap diterapkan pada i2m (faktor ±)', () => {
+  const e = obsEff({ ...OBS, err: { ct1: 0, ct2: 0, mm: 10 }, obs: { dyn: false, knee: 4, gain: 2.5 } }, 8);
+  approx(e.i2m, 8.8, 1e-9, 'i2m = 8·1.10');
+});
+check('evaluatePoint: titik obs (obsI) → terukur dr obsEff (dyn), sejati dr i1/i2 murni', () => {
+  /* err ct2=20 dyn ON; obsI=12 → ct2 eff 50% → i2m=6 (bukan 9.6 statis) */
+  const d = evaluatePoint(OBS, { i1: 12, i2: 12, obsI: 12, source: 'obs' });
+  approx(d.irt, 9, 1e-9, 'irt rata2 (12+6)/2');
+  approx(d.iop, 6, 1e-9, 'iop |12−6|');
+  if (d.status !== 'TRIP') throw new Error('harus TRIP pada titik TERUKUR, dapat ' + d.status);
+  approx(d.irtTrue, 12, 1e-9, 'irt sejati (12+12)/2');
+  approx(d.iopTrue, 0, 1e-9, 'iop sejati |12−12|');
+  if (d.trueStatus !== 'RESTRAIN') throw new Error('sejati harus RESTRAIN');
+  if (!d.hasErr) throw new Error('harus hasErr (terukur ≠ sejati)');
+  /* dyn off → statis: i2m = 12·0.8 = 9.6 → irt 10.8, iop 2.4, tetap RESTRAIN */
+  const s = evaluatePoint({ ...OBS, obs: { dyn: false, knee: 4, gain: 2.5 } }, { i1: 12, i2: 12, obsI: 12 });
+  approx(s.irt, 10.8, 1e-9, 'irt statis (12+9.6)/2');
+  if (s.status !== 'RESTRAIN') throw new Error('dyn off → RESTRAIN, dapat ' + s.status);
+});
+check('obsPath: jejak measured dari I kecil → besar; proporsional → irt naik monoton', () => {
+  const p = obsPath({ ...OBS, err: { ct1: 0, ct2: 0, mm: 10 }, obs: { dyn: false, knee: 4, gain: 2.5 } }, 8);
+  if (p.length < 10) throw new Error('harus banyak sampel: ' + p.length);
+  for (let k = 1; k < p.length; k++) if (!(p[k][0] > p[k - 1][0] + 1e-9)) throw new Error('irt harus naik monoton');
+  const last = p[p.length - 1];
+  approx(last[0], 8.4, 1e-6, 'irt akhir = avg(8, 8.8)');
+  approx(last[1], 0.8, 1e-6, 'iop akhir = |8−8.8|');
+});
+check('obsPath: dyn ON + ct asimetris → melengkung dan TRIP di arus tinggi', () => {
+  const p = obsPath(OBS, 12);
+  const end = p[p.length - 1];
+  approx(end[0], 9, 1e-6, 'irt akhir = avg(12, 6)');
+  approx(end[1], 6, 1e-6, 'iop akhir = |12−6|');
+  const d = evaluatePoint(OBS, { i1: 12, i2: 12, obsI: 12 });
+  if (d.status !== 'TRIP') throw new Error('harus TRIP di 12× dgn ct2 50%, dapat ' + d.status);
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);
