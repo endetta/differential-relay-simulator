@@ -149,7 +149,10 @@ check('ganti metode → Average→Maximum mengubah Irt titik kalkulator', () => 
   contains(E.calcOut.innerHTML, 'Irt = <b>5.00</b> pu', 'preview kalkulator');
 });
 check('regresi basi: kurva berubah → status titik ikut tanpa menyentuh titik (derived)', () => {
-  /* manual (1.0, 0.29): dgn pickup 0.30 → RESTRAIN; pickup 0.20 → ambang turun → TRIP */
+  /* pita tol DINONAKTIFKAN dulu agar flip RESTRAIN→TRIP bersih (dgn pita ±10% titik
+     dekat kurva = AMBANG). manual (1.0, 0.29): pickup 0.30 → RESTRAIN; pickup 0.20
+     → ambang turun ke 0.25 → TRIP */
+  P.tol = 0;
   P.pickup = 0.30;
   addPoint('manual', 1.0, 0.29, null, null);
   render();
@@ -158,7 +161,7 @@ check('regresi basi: kurva berubah → status titik ikut tanpa menyentuh titik (
   render();                                  // tanpa menyentuh titik sama sekali
   if (E.verdictLabel.textContent !== 'TRIP') throw new Error('harus TRIP setelah pickup 0.20');
   contains(E.ptsBody.innerHTML, '>TRIP</span>', 'badge tabel ikut berubah');
-  P.pickup = 0.30;
+  P.pickup = 0.30; P.tol = 10;
   render();
 });
 
@@ -495,21 +498,32 @@ check('P.tol=0 → pita hilang (data-band tak ada)', () => {
   if (svg().includes('data-band')) throw new Error('tol=0 tak boleh ada pita');
   P.tol = 10; render();
 });
+check('pita SIMETRIS: batas bawah data-band-low digambar saat tol>0; hilang saat 0', () => {
+  clearPoints(); zeroErrors();
+  P.tol = 30; P.pickup = 0.30;
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  render();
+  contains(svg(), 'data-band', 'pita harus digambar');
+  contains(svg(), 'data-band-low', 'batas bawah pita harus digambar');
+  P.tol = 0; render();
+  if (svg().includes('data-band-low')) throw new Error('tol=0 tak boleh ada batas bawah pita');
+  P.tol = 10; render();
+});
 check('legenda: item titik AMBANG (copper) ditambahkan', () => {
   render();
   const lg = E.legend.innerHTML;
   contains(lg, 'titik AMBANG', 'legenda AMBANG');
   contains(lg, 'background:var(--copper)', 'swatch copper');
 });
-check('kartu kanan: baris Batas trip (kurva+tol) saat tol>0; hilang saat 0', () => {
+check('kartu kanan: baris Pita toleransi (kurva×(1±tol)) saat tol>0; hilang saat 0', () => {
   clearPoints();
   P.tol = 10;
   addPoint('manual', 1.0, 2.0, null, null);
   render();
-  contains(E.readout.innerHTML, '<span>Batas trip (tol +10%)</span>', 'label batas trip');
-  contains(E.readout.innerHTML, '<span>0.33 pu</span>', 'batas trip irt=1: 0.3×1.1');
+  contains(E.readout.innerHTML, '<span>Pita toleransi (tol ±10%)</span>', 'label pita');
+  contains(E.readout.innerHTML, '<span>0.27 – 0.33 pu</span>', 'pita irt=1: 0.3×0.9 .. 0.3×1.1');
   P.tol = 0; render();
-  if (E.readout.innerHTML.includes('Batas trip')) throw new Error('tol=0 tak boleh ada baris batas trip');
+  if (E.readout.innerHTML.includes('Pita toleransi')) throw new Error('tol=0 tak boleh ada baris pita');
   P.tol = 10; render();
 });
 
@@ -517,7 +531,7 @@ check('kartu kanan: baris Batas trip (kurva+tol) saat tol>0; hilang saat 0', () 
 check('ikon ? hadir (metode/toleransi/error/skenario) + #qTip', () => {
   contains(src, 'id="qTip"', 'kotak tooltip qTip');
   contains(src, 'class="q" data-tip="Rata-rata: Irt=(|I₁|+|I₂|)/2', 'ikon metode');
-  contains(src, 'data-tip="Pita di atas kurva ambang', 'ikon toleransi');
+  contains(src, 'data-tip="Pita toleransi SIMETRIS di kedua sisi kurva ambang', 'ikon toleransi');
   contains(src, 'data-tip="CT sisi 1 jenuh', 'ikon error sisi 1');
   contains(src, 'data-tip="CT sisi 2 jenuh', 'ikon error sisi 2');
   contains(src, 'data-tip="Mismatch rasio', 'ikon mismatch');
@@ -629,6 +643,50 @@ check('obsDyn nonaktif = error statis di arus berapa pun', () => {
   pub.P.obs.dyn = true;
   pub.P.obs.on = false; pub.P.probe = null;
   render();
+});
+
+/* ===== revisi: tanda tanya yatim pindah ke heading terkait (.qrow DIHAPUS) ===== */
+check('tanda tanya: .qrow yatim DIHAPUS — errNoteQ di card-h err, slope-last di slope-h', () => {
+  if (src.includes('class="qrow"')) throw new Error('.qrow masih ada (ikon yatim)');
+  contains(src, 'Faktor kesalahan pengukuran<span class="q" id="errNoteQ"', 'errNoteQ di heading kartu error');
+  contains(src, '${isLast?`<span class="q" data-tip="Slope terakhir', 'ikon slope-last di baris heading slope');
+});
+
+/* ===== revisi: tooltip lebih animatif & bermanfaat (planeTip + qTip) ===== */
+check('tooltip animatif: @keyframes tipIn + .plane-card .tip.show pakai animation', () => {
+  contains(src, '@keyframes tipIn', 'keyframes tipIn');
+  const showRule = src.match(/\.plane-card \.tip\.show\{[^}]*\}/);
+  if (!showRule) throw new Error('rule .plane-card .tip.show tidak ditemukan');
+  if (!showRule[0].includes('animation:tipIn')) throw new Error('.show harus pakai animation:tipIn: ' + showRule[0]);
+});
+check('qTip animatif: @keyframes qIn + #qTip.show pakai animation', () => {
+  contains(src, '@keyframes qIn', 'keyframes qIn');
+  const showRule = src.match(/#qTip\.show\{[^}]*\}/);
+  if (!showRule) throw new Error('rule #qTip.show tidak ditemukan');
+  if (!showRule[0].includes('animation:qIn')) throw new Error('.show harus pakai animation:qIn: ' + showRule[0]);
+});
+check('renderTip: kelas status di wadah (trip/ambang/restrain) utk aksen warna', () => {
+  contains(src, 'tip.className', 'renderTip menulis className');
+  contains(src, "'tip show'", 'kelas dasar wadah');
+});
+check('hoverInfo bermanfaat: TRIP → baris margin %; AMBANG → catatan pita; kurva (tol>0) → baris pita', () => {
+  clearPoints(); zeroErrors();
+  P.tol = 20; P.pickup = 0.30;
+  pub.SL.load([{ percent: 25, breakpoint: 2.0 }, { percent: 65, breakpoint: null }]);
+  addPoint('manual', 1.0, 2.0, null, null);        // TRIP (ambang 0.3, pita 0.24..0.36)
+  addPoint('manual', 2.0, 0.55, null, null);       // AMBANG (ambang 0.5, pita 0.4..0.6)
+  render();
+  const map = E.plane._map; if (!map) throw new Error('map tidak ada');
+  const h = pub.hoverInfo(map, 1.0, 2.0);
+  if (!h || h.kind !== 'point') throw new Error('harus point TRIP: ' + (h && h.kind));
+  if (!h.rows.join('|').includes('margin +')) throw new Error('baris margin: ' + h.rows);
+  const a = pub.hoverInfo(map, 2.0, 0.55);
+  if (!a || a.kind !== 'point') throw new Error('harus point AMBANG: ' + (a && a.kind));
+  if (!a.rows.join('|').includes('dlm pita toleransi ±20%')) throw new Error('catatan AMBANG: ' + a.rows);
+  const c = pub.hoverInfo(map, 3.0, 1.15);          // kurva @3 = 1.15, pita 0.92..1.38
+  if (!c || c.kind !== 'curve') throw new Error('harus curve: ' + (c && c.kind));
+  if (!c.rows.join('|').includes('pita 0.92…1.38 pu')) throw new Error('baris pita kurva: ' + c.rows);
+  P.tol = 10; render();
 });
 
 console.log(`\n${passed} lulus, ${failed} gagal`);

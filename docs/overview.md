@@ -29,9 +29,12 @@ menghitung titik dari arus dua sisi (I1, I2).
 - **Revisi desain:** kartu kanan = **nilai langsung** (nilai utama Irt/Iop sbg **hero**
   `div.hero-row`, formula, tanpa kalimat ringkasan & tanpa kotak edukasi;
   PALSU/TERLEWAT jadi sisipan kecil di baris margin); tooltip hanya untuk elemen yang
-  digambar (margin ±10 px); **panduan via ikon "?"** (`span.q[data-tip]` → tooltip
-  `#qTip`) — teks petunjuk permanen di panel dihapus; **pita toleransi ambang**
-  (slider `tol`, keputusan 3 status TRIP/AMBANG/RESTRAIN, pita copper `data-band`);
+  digambar (margin ±10 px), animatif (`@keyframes tipIn`/`qIn`, aksen warna status,
+  baris `margin %`/`pita low…top`); **panduan via ikon "?"** (`span.q[data-tip]` →
+  tooltip `#qTip`) — teks petunjuk permanen di panel dihapus, ikon melekat pada
+  heading/label terkait (`.qrow` yatim dihapus); **pita toleransi ambang SIMETRIS**
+  (slider `tol`, keputusan 3 status TRIP/AMBANG/RESTRAIN, pita copper `data-band`
+  kedua sisi kurva `kurva×(1±tol/100)` + garis batas `data-band-low`/`data-band-top`);
   **titik kalkulator bisa diedit ulang** (klik → I1/I2 termuat → `commitCalcAdd`);
   **mode pengamatan arus sistem** (sweep through-current + saturasi dinamis, kartu
   ke-4); **default error CT non-nol** (5%/5%/+10% = CT 5P + tap, bukan 0).
@@ -59,7 +62,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 | `tools/lens-harness.js` | Harness Node: stub `document`/`window`, jalankan `<script>`, tambahkan `;global.__pub=API;` (daftar ekspor hidup di `const API` akhir script aplikasi — bukan di harness) + elemen tertangkap (`els.<id>.innerHTML`). |
 | `tools/model.test.js` | Tes literals model murni (PRD §5 + error CT + toleransi 3-status + obs, 53 asersi). `node tools/model.test.js`. |
 | `tools/slope-list.test.js` | Tes properti & literal modul `slopeList` (invariant daftar slope). `node tools/slope-list.test.js`. |
-| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (70 asersi). `node tools/ui.test.js`. |
+| `tools/ui.test.js` | Tes seam desain (port Distance Relay) + perilaku UI (76 asersi). `node tools/ui.test.js`. |
 
 ## Arsitektur isi file HTML (urut dalam `<script>`)
 
@@ -100,7 +103,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
      model.test.js).
    - `hoverInfo(map,irt,iop)` — tooltip murni: hanya ELEMEN yang digambar (titik
      uji/probe, marker BP, garis pickup, kurva ambang), masing-masing dgn margin ±10 px
-     data; → `{kind,head,rows}` atau `null` (diuji ui.test.js).
+     data; → `{kind,head,rows}` atau `null`. Titik memuat baris `margin %` (atau
+     `dlm pita toleransi ±N%` saat AMBANG); kurva memuat rentang `pita low…top pu`
+     saat tol>0 (diuji ui.test.js).
    - **Modul `slopeList`** — satu-satunya pemilik invariant daftar slope (percent 1–200;
      breakpoint monoton naik, gap 0.1, pertama ≥0.6, ≤20; slope terakhir open; 1..4;
      Slope 1 tak bisa dihapus; id di-assign internal). Setiap perintah
@@ -119,7 +124,9 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
    KaTeX; **tanpa** `.r-sum` & tanpa `#eduNote`), `renderWarnings`. Tooltip elemen
    dirender ke `#planeTip` (di dalam `.plane-card`, ikut kursor) via `hoverInfo` —
    tampil via class `.show`, default `display:none` (jangan pakai attr `hidden`:
-   kalah oleh CSS `display`, tooltip jadi tidak pernah hilang). Legenda 3 item saja.
+   kalah oleh CSS `display`, tooltip jadi tidak pernah hilang); animasi masuk
+   `@keyframes tipIn` (restart hanya saat kelas status berubah) + aksen warna status.
+   `#qTip` (ikon "?") pakai animasi `@keyframes qIn` + caret. Legenda 4 item saja.
    `updateCalcPreview` juga mengisi `#errOut` (kartu error): `I₁ … → … pu · I₂ … → … pu`
    sebagai bukti visual bahwa error CT benar-benar diterapkan pada arus.
 6. **Interaksi plot**: klik area → tambah titik manual; seret lingkaran → pindah;
@@ -176,7 +183,7 @@ jalan tanpanya (rumus jatuh ke teks biasa, font ke fallback sistem).
 ```bash
 node tools/model.test.js       # 53 asersi literals model (PRD §5 + error + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 70 asersi seam desain + perilaku UI (hoverInfo, legend,
+node tools/ui.test.js          # 76 asersi seam desain + perilaku UI (hoverInfo, legend,
                                #    errOut, tooltip .show, scrollbar, collapse 4 kartu, obs)
 ```
 

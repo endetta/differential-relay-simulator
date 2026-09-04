@@ -50,9 +50,14 @@
      tooltip (#qTip) saat hover. Jangan tulis kalimat panduan langsung di panel. */
   .q{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--blue-soft);color:var(--blue);cursor:help;font-family:'Space Grotesk',sans-serif;font-size:10px;font-weight:700;line-height:1;flex:none;}
   .q:hover{background:var(--blue);color:#fff;}
-  .qrow{display:flex;justify-content:flex-end;margin:-3px 0 7px;}
-  #qTip{position:fixed;z-index:70;max-width:250px;pointer-events:none;background:var(--ink);color:#FDFAF3;border-radius:8px;padding:7px 10px;font-family:'Inter',sans-serif;font-size:11px;line-height:1.5;box-shadow:0 8px 22px rgba(22,35,58,.3);display:none;}
-  #qTip.show{display:block;}
+  /* .q di dalam heading kartu: jangan ikut bergeser oleh .chev (margin-left:auto) */
+  .card-h .q{width:13px;height:13px;font-size:9px;}
+  #qTip{position:fixed;z-index:70;max-width:260px;pointer-events:none;background:var(--ink);color:#FDFAF3;
+    border:1px solid rgba(255,255,255,.09);border-radius:9px;padding:8px 11px;font-family:'Inter',sans-serif;
+    font-size:11px;line-height:1.55;box-shadow:0 10px 26px rgba(22,35,58,.32);display:none;}
+  #qTip.show{display:block;animation:qIn .15s cubic-bezier(.2,.7,.35,1);transform-origin:top center;}
+  #qTip::before{content:'';position:absolute;top:-6px;left:16px;border:6px solid transparent;border-bottom-color:var(--ink);pointer-events:none;}
+  @keyframes qIn{from{opacity:0;transform:translateY(-3px) scale(.97);}to{opacity:1;transform:none;}}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .zline{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--blue);background:var(--blue-soft);border-radius:6px;padding:3px 8px;margin:-2px 0 11px;line-height:1.5;}
   .zline b{color:var(--ink);font-weight:600;}
@@ -134,9 +139,16 @@
     border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 18px rgba(22,35,58,.14);
     padding:6px 9px;font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.6;color:var(--ink);
     display:none;flex-direction:column;gap:1px;}
-  .plane-card .tip.show{display:flex;}
+  /* animasi masuk (fade+slide kecil) — jangan restart tiap mousemove: renderTip hanya
+     menulis className bila kelas status berubah. Aksen kiri warna status elemen. */
+  .plane-card .tip.show{display:flex;animation:tipIn .16s cubic-bezier(.2,.7,.35,1);transform-origin:top left;}
+  .plane-card .tip.trip{border-left:3px solid var(--red);}
+  .plane-card .tip.ambang{border-left:3px solid var(--copper);}
+  .plane-card .tip.restrain{border-left:3px solid var(--green);}
+  @keyframes tipIn{from{opacity:0;transform:translateY(4px) scale(.96);}to{opacity:1;transform:none;}}
   .plane-card .tip .t-t{font-family:'Inter',sans-serif;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);}
   .plane-card .tip .t-t.t-bad{color:var(--red);font-weight:600;}
+  .plane-card .tip .t-t.t-mid{color:var(--copper);font-weight:600;}
   .plane-card .tip .t-t.t-ok{color:var(--green);font-weight:600;}
 
   .badge{display:inline-block;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:10px;letter-spacing:.08em;padding:2px 8px;border-radius:999px;}
@@ -285,7 +297,7 @@
               </div>
             </div>
             <div class="field">
-              <label><span>Toleransi ambang — batas trip</span><span class="qline"><span class="q" data-tip="Pita di atas kurva ambang: kurva×(1+tol/100). Titik DI DALAM pita = AMBANG (belum trip); trip baru di atas pita.">?</span><b id="tolv">10%</b></span></label>
+              <label><span>Toleransi ambang — batas trip</span><span class="qline"><span class="q" data-tip="Pita toleransi SIMETRIS di kedua sisi kurva ambang: kurva×(1±tol/100). Titik di dalam pita (dekat kurva, sisi mana pun) = AMBANG — belum tentu trip; TRIP hanya jika jelas di atas pita, RESTRAIN hanya jika jelas di bawah.">?</span><b id="tolv">10%</b></span></label>
               <div class="ctrlrow">
                 <input type="range" id="tol" min="0" max="50" step="1" value="10">
                 <input type="number" id="tolNum" min="0" max="50" step="1" value="10" inputmode="numeric">
@@ -312,7 +324,7 @@
         </div>
 
         <div class="card" data-card="err">
-          <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="chev">▾</span></div>
+          <div class="card-h"><span class="dot"></span>Faktor kesalahan pengukuran<span class="q" id="errNoteQ" data-tip="Error hanya berlaku utk titik dari I₁/I₂ (kalkulator/skenario) — keputusan di titik terukur.">?</span><span class="chev">▾</span></div>
           <div class="card-b"><div class="card-b-i">
             <div class="field">
               <label><span>Error CT sisi 1 — I₁</span><span class="qline"><span class="q" data-tip="CT sisi 1 jenuh/salah rasio → arus sekunder yang dilihat relay mengecil: I₁ ×(1−e/100). Default 5% = CT kelas 5P.">?</span><b id="errv-ct1">5%</b></span></label>
@@ -338,7 +350,6 @@
                 <span class="unit">%</span>
               </div>
             </div>
-            <div class="qrow"><span class="q" id="errNoteQ" data-tip="Error hanya berlaku utk titik dari I₁/I₂ (kalkulator/skenario) — keputusan di titik terukur.">?</span></div>
             <div class="zline" id="errOut">I₁ 1.20 → 1.20 pu · I₂ 0.60 → 0.60 pu</div>
             <button class="mini-btn" id="errReset" style="width:100%;">Nolkan semua error</button>
           </div></div>
@@ -643,14 +654,17 @@ function slopeLine(pickup,slopes,irt){
 function thresholdAt(m,irt){
   return Math.max(m.pickup, slopeLine(m.pickup,m.slopes,irt));
 }
-/* Pita toleransi: batas TRIP sesungguhnya = kurva × (1 + tol/100). Tol = 0 → pita
-   kosong (perilaku lama). Keputusan 3 status: RESTRAIN (≤ kurva) · AMBANG (di dalam
-   pita, di atas kurva tapi belum trip) · TRIP (di atas batas pita). */
+/* Pita toleransi SIMETRIS: kurva × (1 ± tol/100) — kesalahan pengukuran nyata di
+   DUA arah, jadi ada ambang ketidakpastian di bawah kurva juga. Tol = 0 → pita
+   kosong (perilaku lama). Keputusan 3 status: TRIP (di atas pita) · AMBANG (DI DALAM
+   pita — dekat kurva sisi mana pun: belum trip, tapi belum tentu restrain) ·
+   RESTRAIN (di bawah pita). */
 function thresholdTol(m,irt){ return thresholdAt(m,irt)*(1+(Number(m.tol)||0)/100); }
+function thresholdLow(m,irt){ return thresholdAt(m,irt)*(1-(Number(m.tol)||0)/100); }
 function tripState(m,iop,irt){
-  const t=thresholdAt(m,irt), u=thresholdTol(m,irt);
+  const u=thresholdTol(m,irt), l=thresholdLow(m,irt);
   if(iop>u+1e-12) return 'TRIP';
-  if(iop>t+1e-12) return 'AMBANG';
+  if(iop>l+1e-12) return 'AMBANG';
   return 'RESTRAIN';
 }
 function statusOf(m,iop,irt){ return tripState(m,iop,irt); }
@@ -818,10 +832,10 @@ function renderSlopes(){
       </div>`;
     const b=isLast?null:SL.bounds(s.id);        // batas dari modul (bukan dihitung ulang di sini)
     const bpField=isLast
-      ? `<div class="qrow"><span class="q" data-tip="Slope terakhir tanpa breakpoint — berlaku sampai arus tak hingga.">?</span></div>`
+      ? ''
       : `<div class="field" style="margin:0;"><label>Breakpoint — Irt</label>${ctrl('bp',s.breakpoint,b.min,b.max,0.1,'pu')}</div>`;
     return `<div class="slope">
-      <div class="slope-h"><span class="sn">Slope ${i+1}</span>${del}</div>
+      <div class="slope-h"><span class="sn">Slope ${i+1}</span>${isLast?`<span class="q" data-tip="Slope terakhir tanpa breakpoint — berlaku sampai arus tak hingga.">?</span>`:''}${del}</div>
       <div class="field" style="margin-bottom:8px;"><label>Kemiringan</label>${ctrl('percent',s.percent,1,200,1,'%')}</div>
       ${bpField}
     </div>`;
@@ -1126,16 +1140,18 @@ function renderPlane(){
     tickY+=`<text x="${padL-8}" y="${pyv+3.5}" text-anchor="end" font-family="JetBrains Mono,monospace" font-size="10" fill="var(--ink-soft)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">${fmt(v,v%1===0?0:1)}</text>`;
   }
 
-  /* poligon daerah: RESTRAIN (bawah kurva) · pita toleransi AMBANG (antara kurva &
-     batas trip) · TRIP (atas batas trip = kurva×(1+tol/100)). Tol=0 → pita kosong,
-     batas trip = kurva (perilaku lama). */
+  /* poligon daerah: RESTRAIN (di bawah pita) · pita toleransi AMBANG SIMETRIS
+     (antara kurva×(1−tol/100) & kurva×(1+tol/100), kurva di tengah pita) · TRIP
+     (di atas pita). Tol=0 → pita kosong (bawah=atas=kurva) = perilaku lama. */
   const toPoly=a=>a.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
   const tolOn=(Number(m.tol)||0)>0;
   const bandPts=pts.map(p=>[p[0],thresholdTol(m,p[0])]);
-  const restPts=[[0,0],[xMax,0],...pts.slice().reverse()];
-  const tripPts=[[0,yMax],[xMax,yMax],...(tolOn?bandPts:pts).slice().reverse()];
-  const bandPoly=tolOn?toPoly([...pts,...bandPts.slice().reverse()]):'';
+  const bandLowPts=pts.map(p=>[p[0],thresholdLow(m,p[0])]);
+  const restPts=[[0,0],[xMax,0],...bandLowPts.slice().reverse()];
+  const tripPts=[[0,yMax],[xMax,yMax],...bandPts.slice().reverse()];
+  const bandPoly=tolOn?toPoly([...bandLowPts,...bandPts.slice().reverse()]):'';
   const bandTop=tolOn?bandPts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' '):'';
+  const bandLow=tolOn?bandLowPts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' '):'';
 
   /* kurva ambang + garis pickup putus-putus + marker breakpoint */
   const curvePoly=pts.map(p=>`${Xx(p[0]).toFixed(2)},${Yy(p[1]).toFixed(2)}`).join(' ');
@@ -1204,6 +1220,7 @@ function renderPlane(){
     <text x="${padL+5}" y="${(pickupY-5).toFixed(2)}" font-family="JetBrains Mono,monospace" font-size="9.5" fill="var(--copper)" stroke="var(--surface)" stroke-width="3" paint-order="stroke">pickup</text>
     <polyline points="${curvePoly}" fill="none" stroke="var(--ink)" stroke-width="2.1" stroke-linejoin="round" clip-path="url(#pc)"/>
     ${bandTop?`<polyline points="${bandTop}" fill="none" stroke="var(--copper)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.85" clip-path="url(#pc)"/>`:''}
+    ${bandLow?`<polyline points="${bandLow}" fill="none" stroke="var(--copper)" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55" clip-path="url(#pc)" data-band-low/>`:''}
     ${bpMarkers}
     <text x="${padL+8}" y="${Yy(yMax*0.9).toFixed(2)}" text-anchor="start" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--red)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH TRIP</text>
     <text x="${(padL+plotW-8)}" y="${Yy(yMax*0.06).toFixed(2)}" text-anchor="end" font-family="Space Grotesk,sans-serif" font-size="11" font-weight="600" letter-spacing=".14em" fill="var(--green)" opacity="0.8" stroke="var(--surface)" stroke-width="3" paint-order="stroke">DAERAH RESTRAIN</text>
@@ -1348,7 +1365,7 @@ function renderSide(){
       +`
       <div class="rline"><span>Ambang kurva</span><span>${fmt(t)} pu</span></div>`
       +(tolOn?`
-      <div class="rline"><span>Batas trip (tol +${P.tol}%)</span><span>${fmt(thresholdTol(m,d.irt))} pu</span></div>`:'');
+      <div class="rline"><span>Pita toleransi (tol ±${P.tol}%)</span><span>${fmt(thresholdLow(m,d.irt))} – ${fmt(thresholdTol(m,d.irt))} pu</span></div>`:'');
     rowsKep=`
       <div class="rline key"><span>Keputusan</span><span>${d.status}</span></div>`
       +(d.hasErr?`
@@ -1427,6 +1444,9 @@ function hoverInfo(map, irt, iop){
       const d=best._d;
       const rows=[`Irt ${fmt(d.irt)} pu`,`Iop ${fmt(d.iop)} pu`];
       if(d.hasErr) rows.push(`sejati: Irt ${fmt(d.irtTrue)} · Iop ${fmt(d.iopTrue)} pu`);
+      rows.push(d.status==='AMBANG'
+        ? `dlm pita toleransi ±${Number(m.tol)||0}%`
+        : `margin ${d.margin>=0?'+':''}${fmt(d.margin)}%`);
       return {kind:'point', head:(best.probe?'probe · ':'titik uji · ')+d.status, rows};
     }
     if(best.kind==='bp'){
@@ -1435,15 +1455,24 @@ function hoverInfo(map, irt, iop){
     }
     return {kind:'pickup', head:'pickup', rows:[`Iop ${fmt(m.pickup)} pu`]};
   }
-  /* kurva ambang: margin VERTIKAL ±10 px dari kurva (semua Irt dlm sumbu) */
+  /* kurva ambang: margin VERTIKAL ±10 px dari kurva (semua Irt dlm sumbu). Bila
+     toleransi aktif, tampilkan juga rentang pita (bawah..atas) utk konteks. */
   const t=thresholdAt(m,irt);
-  if(irt>=0&&irt<=map.xMax&&Math.abs(iop-t)<=dy)
-    return {kind:'curve', head:'kurva ambang', rows:[`Irt ${fmt(irt)} pu`,`ambang ${fmt(t)} pu`,`kursor: Iop ${fmt(iop)} pu · ${iop>t+1e-9?'di atas kurva':'di bawah kurva'}`]};
+  if(irt>=0&&irt<=map.xMax&&Math.abs(iop-t)<=dy){
+    const rows=[`Irt ${fmt(irt)} pu`,`ambang ${fmt(t)} pu`,`kursor: Iop ${fmt(iop)} pu · ${iop>t+1e-9?'di atas kurva':'di bawah kurva'}`];
+    if((Number(m.tol)||0)>0) rows.push(`pita ${fmt(thresholdLow(m,irt))}…${fmt(thresholdTol(m,irt))} pu`);
+    return {kind:'curve', head:'kurva ambang', rows};
+  }
   return null;
 }
 function renderTip(tip,h){
-  const cls=h.kind==='point'?(h.head.includes('TRIP')?'t-bad':'t-ok'):'';
-  tip.innerHTML=`<span class="t-t ${cls}">${h.head}</span>`+h.rows.map(r=>`<span>${r}</span>`).join('');
+  /* kelas status di WADAH utk aksen warna kiri; tulis hanya bila berubah agar
+     animasi tipIn tidak restart tiap mousemove di elemen yang sama */
+  const st=h.kind==='point'?(h.head.includes('TRIP')?'trip':h.head.includes('AMBANG')?'ambang':'restrain'):'';
+  const want='tip show'+(st?' '+st:'');
+  if(tip.className!==want) tip.className=want;
+  const tcls=h.kind==='point'?(st==='trip'?'t-bad':st==='ambang'?'t-mid':'t-ok'):'';
+  tip.innerHTML=`<span class="t-t ${tcls}">${h.head}</span>`+h.rows.map(r=>`<span>${r}</span>`).join('');
 }
 function planeHoverPos(e){
   const map=plane._map; if(!map) return null;
@@ -1575,7 +1604,7 @@ syncCollapsedCentering();
    ========================================================= */
 const API={
   render, S, P,
-  thresholdAt, thresholdTol, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair,
+  thresholdAt, thresholdTol, thresholdLow, statusOf, tripState, marginOf, iopOf, irtOf, evaluatePoint, measuredPair,
   satFactor, obsEff, obsPath,
   computeDomain, curveSample, slopeLine,
   slopeList, SL,

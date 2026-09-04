@@ -41,7 +41,7 @@ Tes dijalankan dengan Node (harness stub-DOM — pola sama dgn Distance Relay):
 ```bash
 node tools/model.test.js       # 53 asersi literals model murni (PRD §5 + error CT + toleransi + obs)
 node tools/slope-list.test.js  # 18 asersi invariant + literal modul slopeList
-node tools/ui.test.js          # 70 asersi seam desain & perilaku UI
+node tools/ui.test.js          # 76 asersi seam desain & perilaku UI
 ```
 
 Semua file tes meng-hard-code nama file HTML di `fs.readFileSync`/path-nya — update jika
@@ -69,9 +69,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    yg sedang diedit via kalkulator), `probe`/`probeTrace` (animasi). `S.ui.collapsed`
    (curve/err/calc/obs). Semua kontrol menulis ke `S`; tidak ada state lain.
 3. **Model murni** — `iopOf`, `irtOf`, `slopeLine` (kumulatif), `thresholdAt
-   = max(pickup, slopeLine)`, `thresholdTol = kurva×(1+tol/100)` (batas trip dgn pita
-   toleransi), `tripState`/`statusOf` (3 status: RESTRAIN ≤ kurva · AMBANG di dalam
-   pita · TRIP di atas pita; `tol` 0/absent → pita kosong = perilaku lama),
+   = max(pickup, slopeLine)`, `thresholdTol`/`thresholdLow = kurva×(1±tol/100)`
+   (pita toleransi SIMETRIS di kedua sisi kurva), `tripState`/`statusOf` (3 status:
+   RESTRAIN di bawah pita · AMBANG DI DALAM pita (dekat kurva sisi mana pun, kurva
+   sendiri termasuk) · TRIP di atas pita; `tol` 0/absent → bawah=atas=kurva → pita
+   kosong = perilaku lama),
    `marginOf` (selalu thd KURVA, bukan batas pita), `computeDomain` (yMax ikut pita
    agar tak terpotong), `curveSample`. Konvensi: fungsi
    memakai `m={pickup,method,slopes}` supaya bisa diuji dengan objek sintetis.
@@ -101,23 +103,32 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 5. **Renderer murni per bagian** — `renderPlane` (SVG `#plane` **adaptif**: `viewBox` =
    ukuran elemen aktual `clientWidth/Height`, fallback `640×440` untuk tes; grid+tick
    ber-halo putih `paint-order:stroke`; poligon RESTRAIN `var(--green-soft)`, pita
-   AMBANG `polygon[data-band]` copper-soft + garis batas trip putus-putus copper (hanya
-   saat `tol>0`), TRIP `var(--red-soft)`; kurva `stroke:var(--ink)`; pickup putus-putus
-   copper; marker `BPn` teal; warna titik by status via `stCol` (TRIP merah/AMBANG
-   copper/RESTRAIN hijau); **ghost titik sejati** (`circle[data-true-point]` + garis putus
-   `line[data-err-link]`) hanya saat `hasErr`), `renderTable`, `renderSide` (status box
-   + readout nilai-langsung 2 grup `Titik uji`/`Keputusan` + formula KaTeX — TANPA
-   kalimat ringkasan & TANPA kotak edukasi; dua nilai utama sbg **hero** `div.hero-row`
-   (Irt netral, Iop berwarna status; baris Irt/Iop lama DIHAPUS); baris
-   `Batas trip (tol N%)` saat `tol>0`; indikator PALSU/TERLEWAT = sisipan kecil di
+   AMBANG `polygon[data-band]` copper-soft SIMETRIS (antara `thresholdLow` &
+   `thresholdTol`, kurva di tengah) + dua garis batas putus-putus copper: atas
+   `data-band-top` & bawah `data-band-low` (hanya saat `tol>0`), TRIP `var(--red-soft)`;
+   kurva `stroke:var(--ink)`; pickup putus-putus copper; marker `BPn` teal; warna titik
+   by status via `stCol` (TRIP merah/AMBANG copper/RESTRAIN hijau); **ghost titik
+   sejati** (`circle[data-true-point]` + garis putus `line[data-err-link]`) hanya saat
+   `hasErr`), `renderTable`, `renderSide` (status box + readout nilai-langsung 2 grup
+   `Titik uji`/`Keputusan` + formula KaTeX — TANPA kalimat ringkasan & TANPA kotak
+   edukasi; dua nilai utama sbg **hero** `div.hero-row` (Irt netral, Iop berwarna
+   status; baris Irt/Iop lama DIHAPUS); baris `Pita toleransi (tol ±N%)` menampilkan
+   rentang `low – top pu` saat `tol>0`; indikator PALSU/TERLEWAT = sisipan kecil di
    baris margin kotak status), `renderWarnings` (peringatan non-blocking PRD §5.6).
    **Tooltip hover** (elemen saja, margin ±10 px): `hoverInfo(map,irt,iop)` murni →
-   `{kind:'point'|'bp'|'pickup'|'curve', head, rows}`; `#planeTip` ikut kursor —
-   **default `display:none`, tampil via class `.show`** (JANGAN pakai attr `hidden`:
-   CSS `display` menimpanya → tooltip tak pernah hilang — bug lama). **Panduan via
-   ikon "?"** (`span.q[data-tip]`, delegasi hover → `#qTip`) — panduan TIDAK pernah
-   ditulis sbg teks permanen di panel. Legenda di bawah kurva **4 item** (titik
-   TRIP/AMBANG/RESTRAIN + sejati) — info lain sudah berlabel di kurva. Scrollbar tipis
+   `{kind:'point'|'bp'|'pickup'|'curve', head, rows}` — titik memuat baris `margin %`
+   (atau `dlm pita toleransi ±N%` saat AMBANG), kurva memuat rentang `pita low…top pu`
+   saat `tol>0`; `#planeTip` ikut kursor — **default `display:none`, tampil via class
+   `.show`** (JANGAN pakai attr `hidden`: CSS `display` menimpanya → tooltip tak pernah
+   hilang — bug lama); animasi masuk `@keyframes tipIn` (fade+slide kecil, hanya restart
+   bila kelas status berubah — `renderTip` bandingkan `className` dulu); aksen kiri
+   warna status via class `trip`/`ambang`/`restrain` di wadah. **Panduan via ikon
+   "?"** (`span.q[data-tip]`, delegasi hover → `#qTip` dgn animasi `@keyframes qIn` +
+   caret) — panduan TIDAK pernah ditulis sbg teks permanen di panel; ikon `?` melekat
+   pada heading/label terkait (`.qrow` yatim DIHAPUS; `errNoteQ` di heading kartu
+   error, `?` slope-last di baris heading slope). Legenda di bawah kurva **4 item**
+   (titik TRIP/AMBANG/RESTRAIN + sejati) — info lain sudah berlabel di kurva. Scrollbar
+   tipis
    GLOBAL via `*{scrollbar-width:thin…}` + `::-webkit-*` 6px.
 6. **Interaksi plot** — `pointerToPu` memakai `plane._map` (di-set renderPlane) +
    skala `clientWidth/viewBox`; elemen dekoratif SVG `pointer-events:none` (lihat
@@ -164,9 +175,12 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
   `#qTip` saat hover (delegasi `pointerover/out`, baca `dataset.tip`). Jangan menulis
   kalimat panduan baru di panel; jangan mengembalikan `#scenHint`/`#methodHint`/attr
   `hidden` pada tooltip.
-- **Keputusan 3 status** (`tripState`/`statusOf`): RESTRAIN/AMBANG/TRIP; AMBANG =
-  copper (`var(--copper)`/`-soft`, class `.badge.AMBANG`) — warna semantik baru,
-  jangan dipakai dekoratif. Margin selalu thd kurva, bukan batas pita.
+- **Keputusan 3 status** (`tripState`/`statusOf`): RESTRAIN (di bawah pita) /
+  AMBANG (DI DALAM pita simetris `kurva×(1±tol/100)` — kurva sendiri termasuk
+  AMBANG saat `tol>0`) / TRIP (di atas pita). AMBANG = copper
+  (`var(--copper)`/`-soft`, class `.badge.AMBANG`) — warna semantik baru, jangan
+  dipakai dekoratif. Margin selalu thd kurva, bukan batas pita. `tol=0` → pita
+  kosong (bawah=atas=kurva), perilaku lama persis.
 - **Default error NON-NOL** (`DEFAULT_ERR` 5%/5%/+10%). Jangan kembalikan default 0
   tanpa alasan kuat — itu keputusan desain (parameter sistem nyata). Tes lama yang
   butuh err=0 memanggil `zeroErrors()` eksplisit di awal suite.
