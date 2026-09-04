@@ -45,9 +45,9 @@ inti tetap berjalan tanpanya.
 - **Panduan via ikon "?"**: teks petunjuk permanen diganti tooltip saat hover
 - **Daftar titik uji**: tabel dengan badge status TRIP/AMBANG/RESTRAIN, margin (%),
   hapus, sorot, bersihkan
-- **Kartu kanan nilai-langsung**: kotak status + nilai utama **Irt/Iop ditonjolkan**
-  (hero) + formula KaTeX — tanpa kalimat panjang; legenda plot sederhana (4 item);
-  scrollbar tipis global
+- **Kartu kanan nilai-langsung**: kotak status + nilai utama sbg **hero** (Iop dulu,
+  tile ber-status: tint + aksen + chip TRIP/AMBANG/RESTRAIN; Irt netral) + formula
+  KaTeX — tanpa kalimat panjang; legenda plot sederhana (4 item); scrollbar tipis global
 - **Skenario & animasi**: preset kurva (Dual-slope / Multi adaptif), skenario arus
   (Normal, Eksternal, Internal, Saturasi CT, **Inrush** sbg pembanding), animasi sapuan
   *eksternal → internal* dengan titik berjalan menyeberangi kurva

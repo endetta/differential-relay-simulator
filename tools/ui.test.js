@@ -361,6 +361,20 @@ check('kartu kanan: hero Irt/Iop (nilai utama di-highlight) + baris nilai lain',
   if (E.readout.innerHTML.includes('Irt (restraint)')) throw new Error('baris Irt lama harus diganti hero');
   if (E.readout.innerHTML.includes('Iop (operasi)</span><span>')) throw new Error('baris Iop lama harus diganti hero');
   contains(E.readout.innerHTML, '<span>Ambang kurva</span><span>0.30 pu</span>', 'nilai ambang');
+  /* revisi visual: Iop dulu (nilai keputusan), chip status, aksen & tint status */
+  const h = E.readout.innerHTML;
+  const iIop = h.indexOf('<span class="h-l">Iop — operasi</span>');
+  const iIrt = h.indexOf('<span class="h-l">Irt — restraint</span>');
+  if (!(iIop >= 0 && iIrt >= 0 && iIop < iIrt)) throw new Error('Iop harus tampil lebih dulu (nilai keputusan)');
+  contains(h, '<div class="hero trip">', 'tile Iop berkelas status');
+  contains(h, '<span class="h-chip">TRIP</span>', 'chip status TRIP di tile Iop');
+  contains(h, '<span class="h-top">', 'baris atas hero (label+chip)');
+  contains(h, '<span class="h-val">', 'baris nilai hero');
+  if (h.indexOf('<span class="h-chip">') < iIop || h.indexOf('<span class="h-chip">') > iIop + 200)
+    throw new Error('chip status harus di dalam tile Iop');
+  contains(src, '.readout .hero::before', 'garis aksen status');
+  contains(src, '.readout .hero.trip{background:var(--red-soft)', 'tile Iop tinted status');
+  contains(src, '.readout .hero .h-chip', 'css chip');
 });
 
 /* ===== fitur: tooltip elemen (hanya yg digambar, dgn margin ±10 px) ===== */

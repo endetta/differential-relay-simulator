@@ -26,8 +26,10 @@ menghitung titik dari arus dua sisi (I1, I2).
   *eksternal → internal* (titik berjalan menyeberangi kurva), **kartu faktor kesalahan
   pengukuran** (CT per sisi + mismatch rasio → titik sejati vs titik terukur), dan
   **tooltip hover** elemen plot.
-- **Revisi desain:** kartu kanan = **nilai langsung** (nilai utama Irt/Iop sbg **hero**
-  `div.hero-row`, formula, tanpa kalimat ringkasan & tanpa kotak edukasi;
+- **Revisi desain:** kartu kanan = **nilai langsung** (nilai utama sbg **hero**
+  `div.hero-row` — **Iop dulu** dgn tile ber-status: tint lembut + aksen kiri + chip
+  TRIP/AMBANG/RESTRAIN; **Irt netral** sbg pembanding — formula, tanpa kalimat
+  ringkasan & tanpa kotak edukasi;
   PALSU/TERLEWAT jadi sisipan kecil di baris margin); tooltip hanya untuk elemen yang
   digambar (margin ±10 px), animatif (`@keyframes tipIn`/`qIn`, aksen warna status,
   baris `margin %`/`pita low…top`); **panduan via ikon "?"** (`span.q[data-tip]` →

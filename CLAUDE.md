@@ -123,8 +123,11 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
    sejati** (`circle[data-true-point]` + garis putus `line[data-err-link]`) hanya saat
    `hasErr`), `renderTable`, `renderSide` (status box + readout nilai-langsung 2 grup
    `Titik uji`/`Keputusan` + formula KaTeX — TANPA kalimat ringkasan & TANPA kotak
-   edukasi; dua nilai utama sbg **hero** `div.hero-row` (Irt netral, Iop berwarna
-   status; baris Irt/Iop lama DIHAPUS); baris `Pita toleransi (tol ±N%)` menampilkan
+   edukasi; dua nilai utama sbg **hero** `div.hero-row` — **Iop (nilai keputusan)
+   tampil LEBIH DULU** dgn tile ber-status (tint `--*-soft` + aksen kiri `::before` +
+   chip `h-chip` berisi TRIP/AMBANG/RESTRAIN + nilai berwarna status), **Irt netral**
+   sbg pembanding (`--bg`, aksen `--line`, tanpa chip); baris Irt/Iop lama DIHAPUS;
+   baris `Pita toleransi (tol ±N%)` menampilkan
    rentang `low – top pu` saat `tol>0`; indikator PALSU/TERLEWAT = sisipan kecil di
    baris margin kotak status), `renderWarnings` (peringatan non-blocking PRD §5.6).
    **Tooltip hover** (elemen saja, margin ±10 px): `hoverInfo(map,irt,iop)` murni →
@@ -181,7 +184,9 @@ Peringatan LF→CRLF saat `git add` di Windows benign — abaikan.
 - Jangan simpan state UI di luar `S` (kecuali hal sepele seperti `animTimer`).
 - **Kartu kanan = nilai langsung saja**: jangan kembalikan kalimat ringkasan (`.r-sum`)
   atau kotak edukasi kontekstual (`#eduNote`/`renderEdu`) — DIHAPUS. Nilai utama
-  Irt/Iop tampil sbg **hero** (`div.hero-row`), bukan baris label→nilai biasa.
+  Irt/Iop tampil sbg **hero** (`div.hero-row`) — Iop dulu (keputusan, tile ber-status:
+  tint `--*-soft`, aksen kiri, chip TRIP/AMBANG/RESTRAIN), Irt netral; bukan baris
+  label→nilai biasa.
 - **Panduan TIDAK boleh jadi teks permanen di panel** (`.hint`, `#methodHint`,
   `#scenHint` sudah dihapus): semua penjelasan lewat ikon `span.q[data-tip]` + tooltip
   `#qTip` saat hover (delegasi `pointerover/out`, baca `dataset.tip`). Jangan menulis

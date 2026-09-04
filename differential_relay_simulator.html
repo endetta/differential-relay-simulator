@@ -121,15 +121,30 @@
   .readout .rline span:first-child{color:var(--ink-soft);font-family:'Inter',sans-serif;font-size:11px;flex:none;}
   .readout .rline.key span:last-child{font-weight:600;color:var(--ink);}
   .readout .rline span:last-child{text-align:right;}
-  /* hero Irt/Iop — dua nilai utama kartu kanan, ditonjolkan (bukan baris biasa) */
+  /* hero Iop/Irt — nilai utama kartu kanan: Iop (keputusan) ber-status, Irt netral.
+     Tile: baris atas (label + chip), baris nilai; aksen kiri status; tint lembut status. */
   .readout .hero-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 9px;}
-  .readout .hero{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 10px 6px;}
-  .readout .hero .h-l{flex-basis:100%;font-family:'Inter',sans-serif;font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);}
-  .readout .hero .h-v{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;line-height:1.15;color:var(--ink);}
-  .readout .hero .h-u{font-size:10px;color:var(--ink-soft);}
+  .readout .hero{position:relative;display:flex;flex-direction:column;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px 8px 13px;overflow:hidden;}
+  .readout .hero::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:4px;border-radius:2px;background:var(--line);}
+  .readout .hero .h-top{display:flex;justify-content:space-between;align-items:center;gap:6px;min-width:0;}
+  .readout .hero .h-l{font-family:'Inter',sans-serif;font-size:9px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap;}
+  .readout .hero .h-chip{flex:none;font-size:8.5px;font-weight:700;letter-spacing:.07em;padding:2px 6px;border-radius:999px;background:var(--surface);color:var(--ink-soft);border:1px solid var(--line);}
+  .readout .hero .h-val{display:flex;align-items:baseline;gap:3px;}
+  .readout .hero .h-v{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;line-height:1.12;letter-spacing:-.01em;color:var(--ink);}
+  .readout .hero .h-u{font-size:9.5px;font-weight:600;color:var(--ink-soft);}
+  /* tile Iop = status titik (tint + aksen + chip + nilai); tile Irt tetap netral */
+  .readout .hero.trip{background:var(--red-soft);}
+  .readout .hero.trip::before{background:var(--red);}
   .readout .hero.trip .h-v{color:var(--red);}
-  .readout .hero.ambang .h-v{color:var(--copper);}
+  .readout .hero.trip .h-chip{color:var(--red);border-color:var(--red);}
+  .readout .hero.ambang{background:var(--copper-soft);}
+  .readout .hero.ambang::before{background:var(--copper);}
+  .readout .hero.ambang .h-v{color:var(--copper-deep);}
+  .readout .hero.ambang .h-chip{color:var(--copper-deep);border-color:var(--copper);}
+  .readout .hero.restrain{background:var(--green-soft);}
+  .readout .hero.restrain::before{background:var(--green);}
   .readout .hero.restrain .h-v{color:var(--green);}
+  .readout .hero.restrain .h-chip{color:var(--green);border-color:var(--green);}
   .formula-box{margin-top:6px;overflow-x:auto;padding:4px 0;min-height:24px;}
 
   /* tooltip elemen plot (hanya utk yg DIGAMBAR; ikut kursor). Default display:none —
@@ -1357,12 +1372,13 @@ function renderSide(){
       : ((selPt.source==='calc'||selPt.source==='probe')
       ? (fromI?`I₁ ${fmt(selPt.i1)} / I₂ ${fmt(selPt.i2)} pu`:'Dari arus')
       : (fromI?'Animasi sapuan':'Klik pada plot'));
-    /* hero Irt/Iop — dua nilai utama DITONJOLKAN; baris Irt/Iop biasa dihapus */
+    /* hero Iop/Irt — dua nilai utama DITONJOLKAN; Iop (nilai keputusan) tampil lebih dulu,
+       tile-nya berstatus (tint + aksen + chip), Irt netral sbg pembanding */
     const tolOn=(Number(P.tol)||0)>0;
     rowsTitik=`
       <div class="hero-row">
-        <div class="hero"><span class="h-l">Irt — restraint</span><span class="h-v">${fmt(d.irt)}</span><span class="h-u">pu</span></div>
-        <div class="hero ${d.status.toLowerCase()}"><span class="h-l">Iop — operasi</span><span class="h-v">${fmt(d.iop)}</span><span class="h-u">pu</span></div>
+        <div class="hero ${d.status.toLowerCase()}"><span class="h-top"><span class="h-l">Iop — operasi</span><span class="h-chip">${d.status}</span></span><span class="h-val"><span class="h-v">${fmt(d.iop)}</span><span class="h-u">pu</span></span></div>
+        <div class="hero"><span class="h-top"><span class="h-l">Irt — restraint</span></span><span class="h-val"><span class="h-v">${fmt(d.irt)}</span><span class="h-u">pu</span></span></div>
       </div>
       <div class="rline"><span>Sumber titik</span><span>${srcTxt}</span></div>`
       +(d.hasErr?`
